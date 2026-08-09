@@ -1,0 +1,15 @@
+[project]
+name = "token-tracker-backend"
+version = "0.1.0"
+description = "Token Tracker backend — transcript ingest, usage snapshots, and the FastAPI dashboard API."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+# Not installed as a package (`pip install -e .`) — app/ is run directly via
+# `uvicorn app.main:app` with backend/ as the working directory. This file
+# just pins/documents the dependency versions; a plain
+# `pip install -r <(python -c "...")`-style venv install is enough. See
+# backend/.venv setup in the repo's dev notes.

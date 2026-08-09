@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.token-tracker.ingest</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/app/ingest.py</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/logs/ingest.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/logs/ingest.error.log</string>
+</dict>
+</plist>

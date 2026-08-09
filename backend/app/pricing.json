@@ -1,0 +1,27 @@
+{
+  "_comment": "USD per 1M tokens. Edit when Anthropic pricing changes or a new model shows up in the report's 'unknown model' warning. cache_read is typically much cheaper than input; cache_creation is typically pricier than input.",
+  "_default": {
+    "input": 3.0,
+    "output": 15.0,
+    "cache_creation": 3.75,
+    "cache_read": 0.3
+  },
+  "claude-sonnet-5": {
+    "input": 3.0,
+    "output": 15.0,
+    "cache_creation": 3.75,
+    "cache_read": 0.3
+  },
+  "claude-opus-4-8": {
+    "input": 15.0,
+    "output": 75.0,
+    "cache_creation": 18.75,
+    "cache_read": 1.5
+  },
+  "claude-haiku-4-5-20251001": {
+    "input": 0.8,
+    "output": 4.0,
+    "cache_creation": 1.0,
+    "cache_read": 0.08
+  }
+}

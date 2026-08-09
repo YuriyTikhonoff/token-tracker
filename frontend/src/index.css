@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Page shell only — every component uses Tailwind utility classes directly. */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 2rem;
+  margin-top: 0.5rem;
+  background: #0b0e14;
+  color: #e6e6e6;
+}

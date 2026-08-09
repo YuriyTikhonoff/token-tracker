@@ -1,0 +1,8 @@
+token_tracker.db
+token_tracker.db-shm
+token_tracker.db-wal
+commands.log
+__pycache__/
+*.pyc
+**/logs/*.log
+.venv/
