@@ -130,7 +130,7 @@ export function DailyTokensChart({ days }: DailyTokensChartProps) {
                   {SEGMENTS.map(({ key, className }) => (
                     <div
                       key={key}
-                      className={`w-full ${className} ${isAvg ? "opacity-[0.55]" : ""}`}
+                      className={`w-full ${className} ${isAvg ? "opacity-[0.3]" : ""}`}
                       style={{ flex: day[key] || 0.0001 }}
                     />
                   ))}
