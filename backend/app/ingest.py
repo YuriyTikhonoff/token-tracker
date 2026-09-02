@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS usage (
     cache_read_tokens INTEGER NOT NULL DEFAULT 0,
     timestamp TEXT
 );
+
+CREATE INDEX IF NOT EXISTS ix_usage_prompt_id ON usage(prompt_id);
+CREATE INDEX IF NOT EXISTS ix_usage_session_id ON usage(session_id);
 """
 
 
@@ -165,7 +168,11 @@ def process_file(connection, path, project, prompt_cache):
             timestamp = entry.get("timestamp")
             session_id = entry.get("sessionId") or path.stem
 
-            if entry_type in ("user", "assistant") and uuid:
+            # Any entry that can sit in the parentUuid chain between a user
+            # prompt and the assistant reply needs a uuid -> prompt_id mapping,
+            # or usage rows lose their attribution. The harness added
+            # "attachment" entries as an intermediate link in Sept 2026.
+            if entry_type in ("user", "assistant", "attachment") and uuid:
                 own_prompt_id = entry.get("promptId")
                 inherited_prompt_id = (
                     lookup_prompt_id(connection, parent_uuid, prompt_cache)
@@ -174,7 +181,8 @@ def process_file(connection, path, project, prompt_cache):
                 )
                 prompt_id = own_prompt_id or inherited_prompt_id
                 record_uuid_prompt(connection, prompt_cache, uuid, prompt_id, session_id)
-                touch_session(connection, session_id, project, timestamp)
+                if entry_type in ("user", "assistant"):
+                    touch_session(connection, session_id, project, timestamp)
 
             if entry_type == "user" and entry.get("promptId") and not entry.get("isMeta"):
                 preview = extract_preview(entry.get("message", {}).get("content"))
@@ -217,6 +225,44 @@ def process_file(connection, path, project, prompt_cache):
     return new_prompt_count, new_meaningful_prompt_count
 
 
+def backfill_prompt_ids(connection, projects_dir):
+    """Re-attribute existing usage rows whose prompt_id is NULL by walking each
+    transcript's parentUuid chain from the assistant entry back to a promptId.
+    Idempotent; only touches rows that are currently unattributed."""
+    updated = 0
+    for path in sorted(projects_dir.glob("*/*.jsonl")):
+        try:
+            entries = [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
+        except (OSError, json.JSONDecodeError):
+            continue
+        by_uuid = {e["uuid"]: e for e in entries if e.get("uuid")}
+
+        def resolve(entry, _depth=0):
+            if entry.get("promptId"):
+                return entry["promptId"]
+            parent = by_uuid.get(entry.get("parentUuid"))
+            if parent is None or _depth > 100:
+                return None
+            return resolve(parent, _depth + 1)
+
+        for entry in entries:
+            if entry.get("type") != "assistant" or not entry.get("uuid"):
+                continue
+            if not entry.get("message", {}).get("usage"):
+                continue
+            prompt_id = resolve(entry)
+            if not prompt_id:
+                continue
+            cursor = connection.execute(
+                "UPDATE usage SET prompt_id = ? "
+                "WHERE assistant_uuid = ? AND (prompt_id IS NULL OR prompt_id = '')",
+                (prompt_id, entry["uuid"]),
+            )
+            updated += cursor.rowcount
+    connection.commit()
+    return updated
+
+
 def run(projects_dir, db_path):
     connection = queries.connect(db_path)
     connection.executescript(SCHEMA)
@@ -256,7 +302,19 @@ def main():
         default=DEFAULT_DB_PATH,
         help="Path to the SQLite database file",
     )
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="Re-attribute existing usage rows with a missing prompt_id, then exit",
+    )
     args = parser.parse_args()
+
+    if args.backfill:
+        connection = queries.connect(args.db)
+        updated = backfill_prompt_ids(connection, args.projects_dir)
+        connection.close()
+        print(f"Backfilled prompt_id on {updated} usage row(s)")
+        return
 
     result = run(args.projects_dir, args.db)
     print(f"Processed {result['file_count']} transcript file(s) into {args.db}")
