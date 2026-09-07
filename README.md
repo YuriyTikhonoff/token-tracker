@@ -10,6 +10,13 @@ Stack: FastAPI backend (`backend/`) + Vite/React/TS frontend (`frontend/`),
 both reading/writing the same SQLite database. See [STACK.md](STACK.md) for
 file-by-file structure and [PLAN.md](PLAN.md) for design notes/roadmap.
 
+A glanceable desktop view of the limits + daily-tokens chart lives in
+[`widgets/hammerspoon/`](widgets/hammerspoon/README.md): an always-on-top
+floating panel (via Hammerspoon) that loads the backend's `/widget` page
+and floats over other windows. The dashboard's "Widget preview" section
+renders that same page so you can tune its look/size before copying the
+values into the Hammerspoon config.
+
 ## How it works
 
 ```

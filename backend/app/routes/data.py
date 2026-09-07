@@ -1,5 +1,15 @@
-"""GET /api/data — direct port of dashboard.py's _send_json."""
+"""GET /api/data — direct port of dashboard.py's _send_json.
+
+The full payload is ~2–6 s of SQLite work on a grown DB, and several clients
+(web app, the Hammerspoon overlay, the dashboard's widget-preview iframe) poll
+it on a timer. A short TTL cache collapses overlapping/rapid polls into one
+query so a single blocking worker doesn't make the API look dead. `/api/refresh`
+calls `invalidate_data_cache()` so the frontend's Refresh button still gets
+fresh numbers immediately.
+"""
 import sqlite3
+import threading
+import time
 
 from fastapi import APIRouter, Depends, Request
 
@@ -11,6 +21,7 @@ router = APIRouter()
 
 TOP_LIMIT = 25
 PROMPT_LOG_LIMIT = 200
+CACHE_TTL_SECONDS = 15
 
 _EMPTY_TOTALS = {
     "input_tokens": 0,
@@ -21,9 +32,20 @@ _EMPTY_TOTALS = {
     "cost": 0.0,
 }
 
+_cache_lock = threading.Lock()
+_cached_payload: DashboardData | None = None
+_cached_at: float = 0.0
 
-@router.get("/api/data", response_model=DashboardData)
-def get_data(request: Request, connection: sqlite3.Connection = Depends(get_db)):
+
+def invalidate_data_cache() -> None:
+    """Drop the cached payload so the next /api/data call recomputes."""
+    global _cached_payload, _cached_at
+    with _cache_lock:
+        _cached_payload = None
+        _cached_at = 0.0
+
+
+def _build_payload(request: Request, connection: sqlite3.Connection) -> DashboardData:
     if not DEFAULT_DB_PATH.exists():
         return DashboardData(
             totals=_EMPTY_TOTALS,
@@ -56,3 +78,18 @@ def get_data(request: Request, connection: sqlite3.Connection = Depends(get_db))
         prompt_log=full_prompt_log[:PROMPT_LOG_LIMIT],
         prompt_log_total=len(full_prompt_log),
     )
+
+
+@router.get("/api/data", response_model=DashboardData)
+def get_data(request: Request, connection: sqlite3.Connection = Depends(get_db)):
+    global _cached_payload, _cached_at
+
+    # Serialize recompute: concurrent pollers that arrive during a rebuild wait
+    # on the lock and then read the just-filled cache instead of each running
+    # their own multi-second query.
+    with _cache_lock:
+        if _cached_payload is not None and time.monotonic() - _cached_at < CACHE_TTL_SECONDS:
+            return _cached_payload
+        _cached_payload = _build_payload(request, connection)
+        _cached_at = time.monotonic()
+        return _cached_payload

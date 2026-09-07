@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Token Tracker widget</title>
+<style>
+  /* Served same-origin from the FastAPI backend (routes/widget.py), so
+     fetch('/api/data') needs no CORS. This IS the desktop widget: the
+     Hammerspoon panel (widgets/hammerspoon/token-tracker.lua) and the
+     dashboard's Widget preview both load this page. Projection/formatting
+     logic is a hand-port of frontend/src/lib/format.ts — keep them in sync. */
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #c7cbd4;
+    background: transparent;
+    padding: 6px;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow: hidden;
+  }
+  #card {
+    min-height: calc(100% - 12px);
+    background: rgba(22, 26, 35, 0.94);
+    border: 1px solid #262b36;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  /* Everything is drag-to-move (Hammerspoon draggingCallback) except links. */
+  a { -webkit-app-region: no-drag; }
+
+  .row { padding: 7px 0; border-bottom: 1px solid #1d2129; }
+  .row:last-of-type { border-bottom: 0; }
+  .row .toprow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .row .scope { font-size: 13px; color: #c7cbd4; margin-bottom: 2px; }
+  .row .line { font-size: 11px; margin-top: 1px; color: #e6e6e6; white-space: nowrap; }
+  .row .margin { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .barrow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .row .track { flex: 1; display: flex; height: 8px; border-radius: 3px; overflow: hidden; background: #1d2129; }
+  .row .track > div { height: 100%; }
+  .row .pct { width: 40px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
+
+  .dchart { border-top: 1px solid #262b36; margin-top: 13px; padding-top: 12px; }
+  .dchart .bars { position: relative; display: flex; align-items: flex-end; gap: 6px; height: 110px; }
+  .dchart .avgline { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,0.35); pointer-events: none; }
+  .dchart .col { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+  .dchart .colinner { width: 100%; display: flex; flex-direction: column; }
+  .dchart .bar { flex: 1; min-height: 2px; width: 100%; border-radius: 3px; }
+  .dchart .tok { font-size: 9px; text-align: center; color: #c7cbd4; font-variant-numeric: tabular-nums; margin-bottom: 2px; white-space: nowrap; }
+  .dchart .xlabels { display: flex; gap: 6px; margin-top: 4px; }
+  .dchart .xlabels > div { flex: 1; min-width: 0; text-align: center; font-size: 9px; color: #8a8f98; }
+  .dchart .xlabels .c { color: #5b8def; font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+  .msg { font-size: 12px; color: #8a8f98; padding: 4px 0; }
+</style>
+</head>
+<body>
+<div id="card"><div class="msg">loading…</div></div>
+
+<script>
+const API_URL = "/api/data";
+const REFRESH_API_URL = "/api/refresh";
+const KYIV_TZ = "Europe/Kyiv";
+
+const params = new URLSearchParams(location.search);
+// ?poll=30  -> re-read the DB every 30s (default 60). ?refresh=1 -> also kick
+// a full ingest + /usage snapshot on load so the numbers are current, not just
+// whatever the last launchd run left in the DB (paints cached data instantly,
+// then re-renders when the refresh lands).
+const REFRESH_MS = Math.max(5, parseInt(params.get("poll") || "60", 10)) * 1000;
+const REFRESH_ON_LOAD = params.get("refresh") === "1";
+
+// Uniform shrink/grow of the whole widget: /widget?scale=0.85 renders it at
+// 85%. The Hammerspoon panel (token-tracker.lua) and the web preview both
+// pass this and size their frame to match; nothing else here needs to know.
+(() => {
+  const raw = params.get("scale");
+  const scale = raw ? parseFloat(raw) : 1;
+  if (scale > 0 && scale !== 1) document.documentElement.style.zoom = String(scale);
+})();
+
+const SESSION_WINDOW_HOURS = 5;
+const WEEKLY_WINDOW_HOURS = 24 * 7;
+const HOUR_MS = 3_600_000;
+
+const SEVERITY_COLORS = { ok: "#3ecf8e", warn: "#e0a94e", danger: "#e05a5a" };
+const BAR_FILL_COLORS = { ok: "#5b8def", warn: "#e0a94e", danger: "#e05a5a" };
+const OVER_PACE_COLOR = "#ffd23f";
+const UNDER_PACE_COLOR = "#333947";
+
+const DAY_BAR_COLOR = "#5b8def";
+const AVG_KEY = "__avg__";
+
+const isWeeklyScope = (s) => s.toLowerCase().includes("week");
+
+function limitSeverity(p) { return p >= 90 ? "danger" : p >= 70 ? "warn" : "ok"; }
+function projectionSeverity(h) { return h < 24 ? "danger" : h < 72 ? "warn" : "ok"; }
+function marginOverrunSeverity(h) { return h > 24 ? "danger" : "warn"; }
+
+function formatDurationLabel(h) {
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  if (h < 24) return `${h.toFixed(1)}h`;
+  const days = Math.floor(h / 24);
+  return `${days}d ${(h - days * 24).toFixed(1)}h`;
+}
+function formatSignedDuration(h) {
+  return (h < 0 ? "-" : "+") + formatDurationLabel(Math.abs(h));
+}
+function fmtResetsAt(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", { timeZone: KYIV_TZ, day: "numeric", month: "short" }) +
+    " " + d.toLocaleTimeString("en-GB", { timeZone: KYIV_TZ, hour: "2-digit", minute: "2-digit" });
+}
+// Daily chart is glanceable, not precise: tokens as whole millions, cost as
+// whole dollars, both unlabelled.
+function fmtDayTokens(n) { return String(Math.round(n / 1_000_000)); }
+function fmtDayCost(c) { return String(Math.round(c)); }
+function dayLabel(s) {
+  return new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function pacePercent(s) {
+  if (!s.resets_at) return null;
+  const win = isWeeklyScope(s.scope) ? WEEKLY_WINDOW_HOURS : SESSION_WINDOW_HOURS;
+  const start = new Date(s.resets_at).getTime() - win * HOUR_MS;
+  const elapsed = (Date.now() - start) / HOUR_MS;
+  return (Math.min(Math.max(elapsed, 0), win) / win) * 100;
+}
+
+function projectionLines(s) {
+  const resetsAt = s.resets_at ? new Date(s.resets_at) : null;
+  const hoursToReset = resetsAt ? (resetsAt.getTime() - Date.now()) / HOUR_MS : null;
+  const resetLine = resetsAt
+    ? (hoursToReset !== null && hoursToReset <= 0
+        ? `reset overdue (${fmtResetsAt(s.resets_at)})`
+        : `reset in ~${formatDurationLabel(hoursToReset)} (${fmtResetsAt(s.resets_at)})`)
+    : null;
+  if (s.hours_to_limit == null) {
+    return { resetLine, exhaustionLine: resetLine ? null : "not enough data yet for a projection", severity: null, marginHours: null };
+  }
+  const eta = new Date(Date.now() + s.hours_to_limit * HOUR_MS);
+  const exhaustionLine = `exhaust in ~${formatDurationLabel(s.hours_to_limit)} (${fmtResetsAt(eta.toISOString())})`;
+  const marginHours = resetsAt ? (eta.getTime() - resetsAt.getTime()) / HOUR_MS : null;
+  const severity = marginHours === null
+    ? projectionSeverity(s.hours_to_limit)
+    : marginHours >= 0 ? "ok" : marginOverrunSeverity(-marginHours);
+  return { resetLine, exhaustionLine, severity, marginHours };
+}
+
+function averageOfCompletedDays(days) {
+  const completed = days.slice(0, -1).slice(-9);
+  if (!completed.length) return null;
+  const acc = { input_tokens: 0, output_tokens: 0, cache_creation_tokens: 0, cache_read_tokens: 0, total_tokens: 0, cost: 0 };
+  for (const d of completed) for (const k in acc) acc[k] += d[k];
+  const n = completed.length;
+  const out = { date: AVG_KEY };
+  for (const k in acc) out[k] = acc[k] / n;
+  return out;
+}
+
+// --- DOM helpers ---
+function el(tag, cls, ...kids) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  for (const k of kids) n.append(k?.nodeType ? k : document.createTextNode(k));
+  return n;
+}
+function seg(width, background) {
+  const d = document.createElement("div");
+  d.style.width = width;
+  d.style.background = background;
+  return d;
+}
+
+function limitRow(s) {
+  const sev = limitSeverity(s.pct_used);
+  const proj = projectionLines(s);
+  const pace = pacePercent(s);
+  const actual = Math.min(100, s.pct_used);
+  const onPace = pace != null ? Math.min(actual, pace) : actual;
+  const overPace = pace != null ? Math.max(0, actual - pace) : 0;
+  const underGap = pace != null ? Math.max(0, pace - actual) : 0;
+
+  const lines = el("div", "");
+  lines.append(el("div", "scope", s.scope));
+  if (proj.resetLine) lines.append(el("div", "line", proj.resetLine));
+  if (proj.exhaustionLine) {
+    const l = el("div", "line", proj.exhaustionLine);
+    if (proj.severity) l.style.color = SEVERITY_COLORS[proj.severity];
+    lines.append(l);
+  }
+
+  const top = el("div", "toprow", lines);
+  if (proj.marginHours != null) {
+    const m = el("div", "margin", formatSignedDuration(proj.marginHours));
+    m.style.color = SEVERITY_COLORS[proj.marginHours < 0 ? "danger" : "ok"];
+    top.append(m);
+  }
+
+  const track = el("div", "track");
+  track.append(seg(`${onPace}%`, BAR_FILL_COLORS[sev]));
+  if (overPace > 0) track.append(seg(`${overPace}%`, OVER_PACE_COLOR));
+  if (underGap > 0) track.append(seg(`${underGap}%`, UNDER_PACE_COLOR));
+  const barrow = el("div", "barrow", track, el("div", "pct", `${s.pct_used.toFixed(0)}%`));
+
+  return el("div", "row", top, barrow);
+}
+
+function dailyChart(days) {
+  if (!days || !days.length) return document.createComment("no days");
+  const avg = averageOfCompletedDays(days);
+  const recent = days.slice(-7);
+  const bars = avg ? [avg, ...recent] : recent;
+  const maxTotal = Math.max(1, ...bars.map((d) => d.total_tokens));
+
+  const barsEl = el("div", "bars");
+  if (avg) {
+    const line = el("div", "avgline");
+    line.style.bottom = `${(avg.total_tokens / maxTotal) * 100 - 6}%`;
+    barsEl.append(line);
+  }
+  const xEl = el("div", "xlabels");
+  for (const d of bars) {
+    const isAvg = d.date === AVG_KEY;
+    const bar = el("div", "bar");
+    bar.style.background = isAvg ? "rgba(91,141,239,0.3)" : DAY_BAR_COLOR;
+    const inner = el("div", "colinner", el("div", "tok", fmtDayTokens(d.total_tokens)), bar);
+    inner.style.height = `${(d.total_tokens / maxTotal) * 100}%`;
+    barsEl.append(el("div", "col", inner));
+    xEl.append(el("div", "", el("div", "", isAvg ? "avg" : dayLabel(d.date)), el("div", "c", fmtDayCost(d.cost))));
+  }
+
+  return el("div", "dchart", barsEl, xEl);
+}
+
+function render(data) {
+  const card = document.getElementById("card");
+  card.textContent = "";
+
+  const snaps = (data.usage_snapshots || []).filter((s) => !s.scope.toLowerCase().includes("fable"));
+  if (!snaps.length) { card.append(el("div", "msg", "no usage snapshots yet — run a refresh")); return; }
+  for (const s of snaps) card.append(limitRow(s));
+
+  card.append(dailyChart(data.daily_usage));
+}
+
+async function tick() {
+  try {
+    const res = await fetch(API_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    render(data);
+    return data;
+  } catch (e) {
+    const card = document.getElementById("card");
+    card.textContent = "";
+    card.append(el("div", "msg", `backend unreachable — ${e.message}`));
+    return null;
+  }
+}
+
+// Minutes after which the newest /usage snapshot counts as stale and worth a
+// refresh-on-load. ?stale=3 by default -- 0 forces a refresh every load.
+const STALE_MINUTES = Math.max(0, parseInt(params.get("stale") || "3", 10));
+
+function newestSnapshotAgeMinutes(data) {
+  const times = (data.usage_snapshots || [])
+    .map((s) => Date.parse(s.captured_at))
+    .filter((t) => !Number.isNaN(t));
+  if (times.length === 0) return Infinity;
+  return (Date.now() - Math.max(...times)) / 60000;
+}
+
+(async () => {
+  const data = await tick();
+  setInterval(tick, REFRESH_MS);
+
+  // Only pay the cost of /api/refresh (ingest + `claude -p "/usage"`, which
+  // briefly blocks the single-worker backend) when the data on screen is
+  // actually stale -- a reload right after a launchd run skips it.
+  if (
+    REFRESH_ON_LOAD &&
+    (data === null || newestSnapshotAgeMinutes(data) >= STALE_MINUTES)
+  ) {
+    fetch(REFRESH_API_URL, { method: "POST" })
+      .then(() => tick())
+      .catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ from fastapi import APIRouter
 import ingest
 import usage_snapshot
 from db import DEFAULT_DB_PATH
+from routes.data import invalidate_data_cache
 from schemas import RefreshResult
 
 router = APIRouter()
@@ -27,6 +28,9 @@ def post_refresh():
         usage_snapshot_count = len(usage_snapshot.run(DEFAULT_DB_PATH))
     except Exception as error:
         errors.append(f"usage_snapshot: {error}")
+    # New rows landed — force the next /api/data to recompute rather than serve
+    # the pre-refresh cache.
+    invalidate_data_cache()
     return RefreshResult(
         new_prompt_count=new_prompt_count,
         usage_snapshot_count=usage_snapshot_count,

@@ -184,7 +184,7 @@ export function formatDurationLabel(hoursToLimit: number): string {
   if (hoursToLimit < 24) return `${hoursToLimit.toFixed(1)}h`;
   const days = Math.floor(hoursToLimit / 24);
   const remainingHours = hoursToLimit - days * 24;
-  return `${days} day${days !== 1 ? "s" : ""} ${remainingHours.toFixed(1)}h`;
+  return `${days}d ${remainingHours.toFixed(1)}h`;
 }
 
 export function formatSignedDuration(hours: number): string {

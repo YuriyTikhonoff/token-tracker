@@ -12,6 +12,7 @@ import { PromptLogTable } from "./components/PromptLogTable";
 import { RefreshButton } from "./components/RefreshButton";
 import { TopPromptsTable } from "./components/TopPromptsTable";
 import { TopSessionsTable } from "./components/TopSessionsTable";
+import { WidgetPreview } from "./components/WidgetPreview";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { REFRESH_MUTATION_KEY } from "./hooks/useRefresh";
 
@@ -59,6 +60,7 @@ function App() {
           <ByProjectTable projects={data.by_project} />
           <TopSessionsTable sessions={data.by_session} />
           <TopPromptsTable prompts={data.by_prompt} />
+          <WidgetPreview />
         </>
       )}
     </div>

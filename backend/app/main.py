@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 
 import queries
-from routes import data, refresh
+from routes import data, refresh, widget
 
 app = FastAPI(title="Token Tracker API")
 
@@ -26,3 +26,4 @@ app.add_middleware(
 
 app.include_router(data.router)
 app.include_router(refresh.router)
+app.include_router(widget.router)
