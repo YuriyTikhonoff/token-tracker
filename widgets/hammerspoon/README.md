@@ -98,9 +98,22 @@ Top of [`token-tracker.lua`](token-tracker.lua):
   itself). Reload the Hammerspoon config after changing it (menu-bar
   icon → **Reload Config**). Mirror the same value in
   `frontend/src/components/WidgetPreview.tsx` so the web preview matches.
-- `BASE_WIDTH` / `BASE_HEIGHT` — native content size before `SCALE`.
-  `BASE_HEIGHT` must fit the daily chart's x-axis labels (~520 for the
-  current layout).
+- `BASE_WIDTH` / `BASE_HEIGHT` — native content size (px) before `SCALE`.
+  The window's content area is `BASE_WIDTH × SCALE` by `BASE_HEIGHT ×
+  SCALE`; macOS adds its ~28px title bar on top of that.
+  - **Empty band at the bottom / too much side padding?** That's surplus
+    `BASE_HEIGHT` / `BASE_WIDTH` — lower the offending value (try -40 to
+    -80 at a time) and reload the config.
+  - **Content clipped?** Raise it.
+  - Floor for `BASE_HEIGHT` is whatever fits the daily chart's two-line
+    x-axis labels (the `2 Sep` / `174` / `208` row) — going below that
+    cuts them off. ~520 fits the current layout.
+  - Tune it in the dashboard's **Widget preview** first: the panel has
+    live **base-width** / **base-height** number inputs over real data,
+    so you can see the exact fit, then copy the numbers into
+    `token-tracker.lua` and reload. Keep the two in sync — the preview's
+    `DEFAULTS` in `frontend/src/components/WidgetPreview.tsx` should match
+    the Lua values.
 - `REFRESH_MINUTES` — how often to pull genuinely fresh data (ingest +
   `claude -p "/usage"` via `POST /api/refresh`), default 3. Driven by an
   `hs.timer` in the Lua, **not** the page — WKWebView suspends the page's
