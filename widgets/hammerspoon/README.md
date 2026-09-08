@@ -81,7 +81,7 @@ loaded). The panel appears top-right and starts polling.
 | Key | Action |
 | --- | --- |
 | `T` | toggle show / hide |
-| `R` | reload the page (re-fetch, and re-refresh if `REFRESH_ON_LOAD`) |
+| `R` | refresh + reload now |
 | `[` | snap to top-left corner |
 | `]` | snap to top-right corner |
 
@@ -101,21 +101,25 @@ Top of [`token-tracker.lua`](token-tracker.lua):
 - `BASE_WIDTH` / `BASE_HEIGHT` — native content size before `SCALE`.
   `BASE_HEIGHT` must fit the daily chart's x-axis labels (~520 for the
   current layout).
-- `POLL_SECONDS` — how often the panel re-reads the DB (default 60).
-- `REFRESH_ON_LOAD` — when `true` (default), every panel load/reload kicks
-  a full ingest + `/usage` snapshot so the numbers are current, not just
-  whatever the last `launchd` run left. Cached data still paints
-  instantly; it re-renders a beat later when the refresh lands. Set to
-  `false` if you reload often and the ~10–30 s backend stall (that call
-  shells out to `claude -p "/usage"`) gets annoying.
+- `REFRESH_MINUTES` — how often to pull genuinely fresh data (ingest +
+  `claude -p "/usage"` via `POST /api/refresh`), default 3. Driven by an
+  `hs.timer` in the Lua, **not** the page — WKWebView suspends the page's
+  own JS timer whenever the window is in the background, which is why an
+  unattended panel used to sit frozen until you opened the web app. Only
+  fires while the panel is visible, so a hidden widget costs nothing;
+  hiding it (`⌘⌥⌃T`) stops the loop, showing it refreshes once and
+  restarts it.
+- `POLL_SECONDS` — how often the *page* re-reads the DB while it's on
+  screen (default 60) — cheap, catches `launchd`/CLI ingest updates
+  between the full refreshes above.
 - `BACKEND` — backend address/port
 - `MARGIN` — gap from the screen edge on snap
 - `HOTKEY_MODS` — the modifier combo for all four hotkeys
 
-`POLL_SECONDS` / `REFRESH_ON_LOAD` / `SCALE` are passed to the page as
-`?poll=`, `?refresh=1`, `?scale=` — the dashboard's **Widget preview**
-section drives the same params from a slider so you can dial in the size
-against live data before copying `SCALE` into `token-tracker.lua`.
+`POLL_SECONDS` and `SCALE` are passed to the page as `?poll=` / `?scale=`
+— the dashboard's **Widget preview** drives the same params so you can
+dial in the size against live data before copying `SCALE` into
+`token-tracker.lua`.
 
 Visual styling (colors, fonts, spacing) is in the `<style>` block of
 `backend/app/widget.html`.
