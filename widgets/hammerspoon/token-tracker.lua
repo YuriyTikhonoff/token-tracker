@@ -31,7 +31,7 @@ local SCALE = 0.5
 
 -- Native (unscaled) content size -- must fit the daily chart's x-axis labels.
 local BASE_WIDTH = 560
-local BASE_HEIGHT = 560
+local BASE_HEIGHT = 470
 
 -- hs.webview.new({h=...}) sizes the *web content area*; macOS adds its ~28pt
 -- title bar on top for the outer window. So BASE_HEIGHT is the content height
