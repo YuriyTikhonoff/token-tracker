@@ -50,7 +50,9 @@
   .dchart .bars { position: relative; display: flex; align-items: flex-end; gap: 6px; height: 110px; }
   .dchart .avgline { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,0.35); pointer-events: none; }
   .dchart .col { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
-  .dchart .colinner { width: 100%; display: flex; flex-direction: column; }
+  /* Pin content to the bottom so a short bar's token label overflows *upward*
+     instead of pushing the bar below the shared baseline. */
+  .dchart .colinner { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
   .dchart .bar { flex: 1; min-height: 2px; width: 100%; border-radius: 3px; }
   .dchart .tok { font-size: 9px; text-align: center; color: #c7cbd4; font-variant-numeric: tabular-nums; margin-bottom: 2px; white-space: nowrap; }
   .dchart .xlabels { display: flex; gap: 6px; margin-top: 4px; }
@@ -124,7 +126,7 @@ function fmtResetsAt(iso) {
 function fmtDayTokens(n) { return String(Math.round(n / 1_000_000)); }
 function fmtDayCost(c) { return String(Math.round(c)); }
 function dayLabel(s) {
-  return new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric" });
 }
 
 function pacePercent(s) {
