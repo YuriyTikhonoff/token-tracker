@@ -480,6 +480,117 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
     }
 
 
+def get_codex_daily_usage(connection, days=10):
+    """Per-day Codex token totals for the trailing `days` Kyiv-local days
+    (oldest first, today last), zero-filled for days with no usage. Same
+    shape/window as get_daily_usage but over Codex's own token categories
+    (see codex_ingest.py) rather than Claude's -- no cost, since Codex model
+    names in the logs are internal codenames with no published $/MTok rates
+    to attach."""
+    now_kyiv = datetime.now(KYIV_TZ)
+    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_starts_kyiv = [start_of_today_kyiv - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+
+    earliest_utc_iso = day_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        rows = connection.execute(
+            "SELECT timestamp, input_tokens, cached_input_tokens, output_tokens, "
+            "reasoning_output_tokens, total_tokens FROM codex_usage WHERE timestamp >= ?",
+            (earliest_utc_iso,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+
+    by_date = {
+        day_start.strftime("%Y-%m-%d"): {
+            "date": day_start.strftime("%Y-%m-%d"),
+            "input_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_output_tokens": 0,
+            "total_tokens": 0,
+        }
+        for day_start in day_starts_kyiv
+    }
+
+    for timestamp, input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens in rows:
+        local_date = _parse_usage_timestamp(timestamp).astimezone(KYIV_TZ).strftime("%Y-%m-%d")
+        bucket = by_date.get(local_date)
+        if bucket is None:
+            continue
+        bucket["input_tokens"] += input_tokens
+        bucket["cached_input_tokens"] += cached_input_tokens
+        bucket["output_tokens"] += output_tokens
+        bucket["reasoning_output_tokens"] += reasoning_output_tokens
+        bucket["total_tokens"] += total_tokens
+
+    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_kyiv]
+
+
+def get_codex_rate_limits_trend(connection, window_hours=6):
+    """Latest Codex rate-limit snapshot for the 5h and weekly windows, plus a
+    projected hours-to-100% -- reuses the same _extrapolate_pct_used/
+    _trim_to_current_cycle machinery as get_usage_snapshots_trend, since
+    Codex's rate_limits payload (captured passively on every turn -- see
+    codex_ingest.py) has the same shape: a used_percent plus a resets_at that
+    jumps forward at each window boundary. Unlike Claude's usage_snapshots
+    (regex-parsed from `claude -p "/usage"` text), Codex gives window_minutes
+    and resets_at directly and precisely, so no reset-boundary text parsing
+    is needed here."""
+    try:
+        rows = connection.execute(
+            "SELECT captured_at, primary_pct, primary_window_minutes, primary_resets_at, "
+            "secondary_pct, secondary_window_minutes, secondary_resets_at "
+            "FROM codex_rate_limits ORDER BY captured_at ASC"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    if not rows:
+        return []
+
+    now_iso = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+    results = []
+    for label, pct_idx, window_idx, resets_idx, is_weekly, default_window_minutes in (
+        ("Codex 5h limit", 1, 2, 3, False, 300),
+        ("Codex weekly limit", 4, 5, 6, True, 10080),
+    ):
+        snapshots = [
+            {
+                "captured_at": row[0],
+                "pct_used": row[pct_idx],
+                "resets_at": row[resets_idx],
+                "window_minutes": row[window_idx],
+            }
+            for row in rows
+            if row[pct_idx] is not None
+        ]
+        if not snapshots:
+            continue
+
+        scope_window_hours = WEEK_SCOPE_WINDOW_HOURS if is_weekly else window_hours
+        latest, rate_per_hour, pct_used_now = _extrapolate_pct_used(
+            snapshots, scope_window_hours, now_iso, widen=is_weekly
+        )
+        hours_to_limit = (100 - pct_used_now) / rate_per_hour if rate_per_hour > 0 else None
+        resets_at = latest["resets_at"]
+        if resets_at is None:
+            resets_at = next(
+                (snapshot["resets_at"] for snapshot in reversed(snapshots) if snapshot["resets_at"] is not None),
+                None,
+            )
+        results.append({
+            "scope": label,
+            "pct_used": pct_used_now,
+            "captured_at": latest["captured_at"],
+            "resets_at": resets_at,
+            "window_minutes": latest.get("window_minutes") or default_window_minutes,
+            "rate_per_hour": rate_per_hour,
+            "hours_to_limit": hours_to_limit,
+        })
+
+    return results
+
+
 def get_by_project(connection, pricing):
     rows = connection.execute(
         "SELECT s.project, u.model, u.input_tokens, u.output_tokens, "

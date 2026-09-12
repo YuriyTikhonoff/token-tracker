@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 
 import type { Period } from "./api/types";
 import { ByProjectTable } from "./components/ByProjectTable";
+import { CodexDailyTokensChart } from "./components/CodexDailyTokensChart";
+import { CodexLimitsWidget } from "./components/CodexLimitsWidget";
 import { CostBreakdown } from "./components/CostBreakdown";
 import { DailyTokensChart } from "./components/DailyTokensChart";
 import { LimitsWidget } from "./components/LimitsWidget";
@@ -10,6 +12,7 @@ import { LoadingOverlay } from "./components/LoadingOverlay";
 import { MonthlyTokensChart } from "./components/MonthlyTokensChart";
 import { PromptLogTable } from "./components/PromptLogTable";
 import { RefreshButton } from "./components/RefreshButton";
+import { CollapsibleSection } from "./components/shared/CollapsibleSection";
 import { TopPromptsTable } from "./components/TopPromptsTable";
 import { TopSessionsTable } from "./components/TopSessionsTable";
 import { WidgetPreview } from "./components/WidgetPreview";
@@ -44,6 +47,12 @@ function App() {
             />
             <DailyTokensChart days={data.daily_usage} />
           </div>
+          <CollapsibleSection title="Codex usage" defaultExpanded={true}>
+            <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
+              <CodexLimitsWidget snapshots={data.codex_rate_limits} />
+              <CodexDailyTokensChart days={data.codex_daily_usage} />
+            </div>
+          </CollapsibleSection>
           <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
             <CostBreakdown
               totals={data.totals_by_period[activePeriod]}

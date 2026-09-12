@@ -60,6 +60,8 @@ def _build_payload(request: Request, connection: sqlite3.Connection) -> Dashboar
             by_prompt=[],
             prompt_log=[],
             prompt_log_total=0,
+            codex_daily_usage=[],
+            codex_rate_limits=[],
         )
 
     pricing = request.app.state.pricing
@@ -77,6 +79,8 @@ def _build_payload(request: Request, connection: sqlite3.Connection) -> Dashboar
         by_prompt=queries.get_by_prompt(connection, pricing, TOP_LIMIT),
         prompt_log=full_prompt_log[:PROMPT_LOG_LIMIT],
         prompt_log_total=len(full_prompt_log),
+        codex_daily_usage=queries.get_codex_daily_usage(connection),
+        codex_rate_limits=queries.get_codex_rate_limits_trend(connection),
     )
 
 

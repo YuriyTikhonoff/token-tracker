@@ -106,6 +106,25 @@ class PromptLogEntry(BaseModel):
     cost: float
 
 
+class CodexDailyUsage(BaseModel):
+    date: str
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
+    reasoning_output_tokens: int
+    total_tokens: int
+
+
+class CodexRateLimitTrend(BaseModel):
+    scope: str
+    pct_used: float
+    captured_at: str
+    resets_at: Optional[str] = None
+    window_minutes: int
+    rate_per_hour: float
+    hours_to_limit: Optional[float] = None
+
+
 class DashboardData(BaseModel):
     totals: Totals
     totals_by_period: TotalsByPeriod
@@ -119,9 +138,12 @@ class DashboardData(BaseModel):
     by_prompt: list[PromptTotal]
     prompt_log: list[PromptLogEntry]
     prompt_log_total: int
+    codex_daily_usage: list[CodexDailyUsage] = []
+    codex_rate_limits: list[CodexRateLimitTrend] = []
 
 
 class RefreshResult(BaseModel):
     new_prompt_count: int
     usage_snapshot_count: Optional[int] = None
+    codex_new_usage_count: Optional[int] = None
     errors: list[str]

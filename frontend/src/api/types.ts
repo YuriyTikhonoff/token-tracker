@@ -99,6 +99,25 @@ export interface PromptLogEntry {
 
 export type Period = "today" | "month" | "all";
 
+export interface CodexDailyUsage {
+  date: string;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  reasoning_output_tokens: number;
+  total_tokens: number;
+}
+
+export interface CodexRateLimitTrend {
+  scope: string;
+  pct_used: number;
+  captured_at: string;
+  resets_at: string | null;
+  window_minutes: number;
+  rate_per_hour: number;
+  hours_to_limit: number | null;
+}
+
 export interface DashboardData {
   totals: Totals;
   totals_by_period: TotalsByPeriod;
@@ -112,10 +131,13 @@ export interface DashboardData {
   by_prompt: PromptTotal[];
   prompt_log: PromptLogEntry[];
   prompt_log_total: number;
+  codex_daily_usage: CodexDailyUsage[];
+  codex_rate_limits: CodexRateLimitTrend[];
 }
 
 export interface RefreshResult {
   new_prompt_count: number;
   usage_snapshot_count: number | null;
+  codex_new_usage_count: number | null;
   errors: string[];
 }

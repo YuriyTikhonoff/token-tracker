@@ -3,6 +3,7 @@
 // diff. projectionLines returns a typed object instead of building HTML
 // strings, since React renders JSX rather than innerHTML.
 import type {
+  CodexRateLimitTrend,
   CurrentSessionStats,
   Period,
   UsageSnapshotTrend,
@@ -165,6 +166,20 @@ export function pacePercent(snapshot: UsageSnapshotTrend): number | null {
   return (clampedElapsedHours / windowHours) * 100;
 }
 
+// Codex's rate-limit snapshots (see codex_ingest.py) carry window_minutes
+// directly rather than needing a scope-name guess, so this is the same
+// "elapsed fraction of the window" math as pacePercent above without the
+// isWeeklyScope heuristic.
+export function codexPacePercent(snapshot: CodexRateLimitTrend): number | null {
+  if (!snapshot.resets_at) return null;
+  const windowHours = snapshot.window_minutes / 60;
+  const resetsAt = new Date(snapshot.resets_at).getTime();
+  const windowStartMs = resetsAt - windowHours * 3_600_000;
+  const elapsedHours = (Date.now() - windowStartMs) / 3_600_000;
+  const clampedElapsedHours = Math.min(Math.max(elapsedHours, 0), windowHours);
+  return (clampedElapsedHours / windowHours) * 100;
+}
+
 export function projectionSeverity(hoursToLimit: number): Severity {
   if (hoursToLimit < 24) return "danger";
   if (hoursToLimit < 72) return "warn";
@@ -199,7 +214,14 @@ export interface ProjectionLines {
   marginHours: number | null;
 }
 
-export function projectionLines(snapshot: UsageSnapshotTrend): ProjectionLines {
+// Shape shared by UsageSnapshotTrend (Claude) and CodexRateLimitTrend (Codex)
+// -- projectionLines only ever reads these two fields, so either satisfies it.
+interface ResetProjectable {
+  resets_at: string | null;
+  hours_to_limit: number | null;
+}
+
+export function projectionLines(snapshot: ResetProjectable): ProjectionLines {
   const resetsAt = snapshot.resets_at ? new Date(snapshot.resets_at) : null;
   const hoursToReset = resetsAt
     ? (resetsAt.getTime() - Date.now()) / 3_600_000
