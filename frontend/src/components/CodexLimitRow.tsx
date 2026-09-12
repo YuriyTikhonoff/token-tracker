@@ -28,6 +28,11 @@ export function CodexLimitRow({ snapshot }: CodexLimitRowProps) {
   const projection = projectionLines(snapshot);
   const pacePct = codexPacePercent(snapshot);
 
+  // Only worth showing the projected figure when it's actually moved past
+  // the confirmed one at this rounding -- avoids "32% → 32% projected"
+  // right after a fresh real reading.
+  const showProjected = Math.round(snapshot.captured_pct_used) !== Math.round(snapshot.pct_used);
+
   const actualPct = Math.min(100, snapshot.pct_used);
   const onPaceFillPct = pacePct != null ? Math.min(actualPct, pacePct) : actualPct;
   const overPacePct = pacePct != null ? Math.max(0, actualPct - pacePct) : 0;
@@ -89,8 +94,15 @@ export function CodexLimitRow({ snapshot }: CodexLimitRowProps) {
             />
           )}
         </div>
-        <div className="w-[38px] text-right font-semibold tabular-nums">
-          {snapshot.pct_used.toFixed(0)}%
+        <div className="flex items-baseline justify-end gap-1 whitespace-nowrap">
+          <span className="font-semibold tabular-nums">
+            {snapshot.captured_pct_used.toFixed(0)}%
+          </span>
+          {showProjected && (
+            <span className="text-[0.7rem] text-[#5c6068] tabular-nums">
+              → {snapshot.pct_used.toFixed(0)}%
+            </span>
+          )}
         </div>
       </div>
     </div>

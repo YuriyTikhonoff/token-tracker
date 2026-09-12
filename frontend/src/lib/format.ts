@@ -207,6 +207,19 @@ export function formatSignedDuration(hours: number): string {
   return sign + formatDurationLabel(Math.abs(hours));
 }
 
+// How long ago a timestamp was, for labeling a *projected* value (e.g.
+// Codex's rate-limit pct_used, which keeps climbing between polls via
+// _extrapolate_pct_used even with zero new activity) so it isn't mistaken
+// for a live reading.
+export function ageLabel(iso: string): string {
+  const elapsedMinutes = (Date.now() - new Date(iso).getTime()) / 60_000;
+  if (elapsedMinutes < 1) return "just now";
+  if (elapsedMinutes < 60) return `${Math.round(elapsedMinutes)}m ago`;
+  const elapsedHours = elapsedMinutes / 60;
+  if (elapsedHours < 24) return `${elapsedHours.toFixed(1)}h ago`;
+  return `${Math.floor(elapsedHours / 24)}d ago`;
+}
+
 export interface ProjectionLines {
   resetLine: string | null;
   exhaustionLine: string | null;

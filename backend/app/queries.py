@@ -366,7 +366,14 @@ def get_usage_snapshots_trend(connection, window_hours=6):
     window can land entirely in a quiet stretch and understate the real burn
     rate. Frequently-resetting scopes (e.g. the 5h session) keep the plain
     `window_hours` window with no widening -- a stall there is real signal,
-    not a quiet stretch to search past."""
+    not a quiet stretch to search past.
+
+    Returns both `pct_used` (the live projection at `now_iso`, which keeps
+    climbing on every call even between real `/usage` snapshots) and
+    `captured_pct_used` (the actual last-reported value, frozen at
+    `captured_at`) -- see get_codex_rate_limits_trend for the Codex twin of
+    this function, which needed the same split since it lacks an
+    independent periodic poller and so drifts more visibly."""
     try:
         rows = connection.execute(
             "SELECT captured_at, scope, pct_used, resets_at FROM usage_snapshots "
@@ -405,6 +412,7 @@ def get_usage_snapshots_trend(connection, window_hours=6):
         results.append({
             "scope": scope,
             "pct_used": pct_used_now,
+            "captured_pct_used": latest["pct_used"],
             "captured_at": latest["captured_at"],
             "resets_at": resets_at,
             "rate_per_hour": rate_per_hour,
@@ -536,7 +544,13 @@ def get_codex_rate_limits_trend(connection, window_hours=6):
     jumps forward at each window boundary. Unlike Claude's usage_snapshots
     (regex-parsed from `claude -p "/usage"` text), Codex gives window_minutes
     and resets_at directly and precisely, so no reset-boundary text parsing
-    is needed here."""
+    is needed here.
+
+    Returns both `pct_used` (the live projection at `now_iso`, which keeps
+    climbing on every call between real captures) and `captured_pct_used`
+    (the actual last-reported value, frozen at `captured_at`) so callers can
+    show the confirmed figure alongside the estimate rather than only the
+    projection."""
     try:
         rows = connection.execute(
             "SELECT captured_at, primary_pct, primary_window_minutes, primary_resets_at, "
@@ -581,6 +595,7 @@ def get_codex_rate_limits_trend(connection, window_hours=6):
         results.append({
             "scope": label,
             "pct_used": pct_used_now,
+            "captured_pct_used": latest["pct_used"],
             "captured_at": latest["captured_at"],
             "resets_at": resets_at,
             "window_minutes": latest.get("window_minutes") or default_window_minutes,

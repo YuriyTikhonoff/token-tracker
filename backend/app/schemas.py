@@ -28,6 +28,7 @@ class TotalsByPeriod(BaseModel):
 class UsageSnapshotTrend(BaseModel):
     scope: str
     pct_used: float
+    captured_pct_used: float
     captured_at: str
     resets_at: Optional[str] = None
     rate_per_hour: float
@@ -118,6 +119,7 @@ class CodexDailyUsage(BaseModel):
 class CodexRateLimitTrend(BaseModel):
     scope: str
     pct_used: float
+    captured_pct_used: float
     captured_at: str
     resets_at: Optional[str] = None
     window_minutes: int

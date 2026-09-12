@@ -49,6 +49,7 @@ export interface MonthlyUsage {
 export interface UsageSnapshotTrend {
   scope: string;
   pct_used: number;
+  captured_pct_used: number;
   captured_at: string;
   resets_at: string | null;
   rate_per_hour: number;
@@ -111,6 +112,7 @@ export interface CodexDailyUsage {
 export interface CodexRateLimitTrend {
   scope: string;
   pct_used: number;
+  captured_pct_used: number;
   captured_at: string;
   resets_at: string | null;
   window_minutes: number;
