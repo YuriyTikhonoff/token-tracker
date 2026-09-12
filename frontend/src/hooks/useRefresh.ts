@@ -10,8 +10,15 @@ export function useRefresh() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationKey: REFRESH_MUTATION_KEY,
-    mutationFn: () =>
-      fetchJson<RefreshResult>("/api/refresh", { method: "POST" }),
+    // triggerCodexUsageCheck spends real Codex tokens (a live `codex exec`
+    // turn) to force a fresh rate-limit reading — only pass true from an
+    // explicit user click, never from a passive/automatic refresh (e.g.
+    // window-focus), so the cost stays opt-in.
+    mutationFn: (triggerCodexUsageCheck: boolean = false) =>
+      fetchJson<RefreshResult>(
+        `/api/refresh?trigger_codex_usage_check=${triggerCodexUsageCheck}`,
+        { method: "POST" },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: DASHBOARD_DATA_QUERY_KEY });
     },

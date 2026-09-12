@@ -34,8 +34,19 @@ carry what's needed, both written once per turn:
 Unlike Claude (where subscription-limit tracking has to shell out to
 `claude -p "/usage"` and regex-parse its text output — see
 `backend/app/usage_snapshot.py`), Codex logs its rate-limit snapshot
-passively on every turn. No extra CLI call is needed; `codex_ingest.py`
-only ever reads the rollout files already on disk.
+passively on every turn, so `codex_ingest.py` normally only reads the
+rollout files already on disk — no extra CLI call, no extra tokens spent.
+
+The tradeoff: that reading is only as fresh as the last real turn the user
+happened to run. There's no free/side-effect-free "codex status" check —
+forcing a fresh reading means running an actual `codex exec` turn, which is
+really billed (~15k tokens observed for a one-word reply). See
+`backend/app/codex_usage_check.py`, which runs a trivial `codex exec` and
+then re-runs `codex_ingest.py` to pick up the fresh rate-limit line it
+wrote. Because of that cost, this only runs when a user explicitly clicks
+the dashboard's Refresh button (`POST /api/refresh?trigger_codex_usage_check=true`)
+— never on the passive window-focus refresh, and never from `watch.sh`'s
+timer loop (unlike `usage_snapshot.py`, which does run there).
 
 ## Backend
 
@@ -60,7 +71,11 @@ only ever reads the rollout files already on disk.
   alongside the existing Claude fields.
 - `POST /api/refresh` now also runs `codex_ingest.run()` (wrapped in its own
   try/except, like the existing `ingest`/`usage_snapshot` calls, so one
-  failing doesn't block the others).
+  failing doesn't block the others) — or, when called with
+  `?trigger_codex_usage_check=true`, runs `codex_usage_check.run()` instead,
+  which triggers a live (billed) `codex exec` turn before re-ingesting. The
+  frontend only sets that flag on an explicit Refresh button click (see
+  `RefreshResult.codex_usage_check_triggered` in the response).
 
 ## Frontend
 

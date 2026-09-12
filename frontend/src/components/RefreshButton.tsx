@@ -13,7 +13,9 @@ export function RefreshButton({ lastPrompt }: RefreshButtonProps) {
   const refresh = useRefresh();
   const handleFocusRefresh = useCallback(() => {
     if (!refresh.isPending) {
-      refresh.mutate();
+      // Passive refresh (tab regained focus) — never spend tokens on a live
+      // Codex usage check the user didn't ask for.
+      refresh.mutate(false);
     }
   }, [refresh]);
   useRefreshOnWindowFocus(handleFocusRefresh);
@@ -31,7 +33,10 @@ export function RefreshButton({ lastPrompt }: RefreshButtonProps) {
         ? `Refresh completed with errors: ${result.errors.join("; ")}`
         : `Refreshed: ${result.new_prompt_count} new prompt(s) ingested` +
           (result.usage_snapshot_count != null
-            ? ", usage snapshot updated."
+            ? ", usage snapshot updated"
+            : "") +
+          (result.codex_usage_check_triggered
+            ? ", Codex rate limits re-checked."
             : ".");
   }
 
@@ -66,7 +71,8 @@ export function RefreshButton({ lastPrompt }: RefreshButtonProps) {
         <button
           className="ml-auto cursor-pointer rounded-md border border-[#262b36] bg-transparent px-[0.8rem] py-[0.3rem] text-[0.8rem] text-[#8a8f98]"
           disabled={refresh.isPending}
-          onClick={() => refresh.mutate()}
+          onClick={() => refresh.mutate(true)}
+          title="Also forces a fresh Codex rate-limit reading (spends a small amount of real Codex tokens)"
         >
           {refresh.isPending ? "Refreshing…" : "Refresh"}
         </button>

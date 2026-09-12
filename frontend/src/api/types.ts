@@ -141,5 +141,6 @@ export interface RefreshResult {
   new_prompt_count: number;
   usage_snapshot_count: number | null;
   codex_new_usage_count: number | null;
+  codex_usage_check_triggered: boolean;
   errors: string[];
 }

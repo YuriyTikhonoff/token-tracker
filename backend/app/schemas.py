@@ -148,4 +148,5 @@ class RefreshResult(BaseModel):
     new_prompt_count: int
     usage_snapshot_count: Optional[int] = None
     codex_new_usage_count: Optional[int] = None
+    codex_usage_check_triggered: bool = False
     errors: list[str]
