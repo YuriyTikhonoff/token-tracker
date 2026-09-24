@@ -10,7 +10,7 @@ periodically (e.g. from watch.sh) so a trend accumulates over time.
 import argparse
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -19,6 +19,7 @@ import queries
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
 UTC_TZ = ZoneInfo("UTC")
+STALE_RESET_WRAP_DAYS = 180
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_snapshots (
@@ -65,7 +66,9 @@ def parse_resets_at(resets_text, now_kyiv):
     resets_kyiv = now_kyiv.replace(
         month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0
     )
-    if resets_kyiv < now_kyiv:
+    # The CLI omits the year. A time just behind us is a window that closed
+    # (or a stale label), not next year; only wrap when it's far in the past.
+    if resets_kyiv < now_kyiv - timedelta(days=STALE_RESET_WRAP_DAYS):
         resets_kyiv = resets_kyiv.replace(year=now_kyiv.year + 1)
     return resets_kyiv.astimezone(UTC_TZ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
