@@ -44,7 +44,7 @@ function App() {
       <RefreshButton lastPrompt={lastMeaningfulPrompt} />
       {data && (
         <>
-          {data.accounts.length > 1 && (
+          {data.accounts.length > 0 && (
             <>
               <AccountSwitcher
                 accounts={data.accounts}

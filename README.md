@@ -91,7 +91,7 @@ One script, `backend/hooks/record_account.py`, is registered for two events in
   wrong one.
 - Accounts get a label from their Claude display name; click it in the
   Accounts section to rename (e.g. "Anna").
-- With two or more accounts the dashboard shows an account switcher and an
+- The dashboard always shows an account switcher and an
   Accounts section (today / month / all-time per account, combined total,
   cost share). The switcher filters Claude usage, limits and the tables; Codex
   numbers are not per account. `report.py --account <uuid>` does the same for
