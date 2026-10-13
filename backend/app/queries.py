@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import config
 
 DEFAULT_DB_PATH = config.db_path()
-KYIV_TZ = ZoneInfo("Europe/Kyiv")
+LOCAL_TZ = config.timezone()
 
 
 def connect(db_path, **kwargs) -> sqlite3.Connection:
@@ -77,15 +77,15 @@ def get_totals(connection, pricing, since_utc_iso=None, account=None):
 
 
 def get_totals_by_period(connection, pricing, account=None):
-    """Totals for all time, the current Kyiv-local month, and the current
-    Kyiv-local day. Boundaries are computed in Europe/Kyiv and converted to
+    """Totals for all time, the current local month, and the current
+    local day. Boundaries are computed in the configured time zone and converted to
     UTC (matching how timestamps are stored) before filtering."""
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_month_kyiv = start_of_today_kyiv.replace(day=1)
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_month_local = start_of_today_local.replace(day=1)
 
-    start_of_today_utc = start_of_today_kyiv.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
-    start_of_month_utc = start_of_month_kyiv.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    start_of_today_utc = start_of_today_local.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    start_of_month_utc = start_of_month_local.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
 
     return {
         "today": get_totals(connection, pricing, start_of_today_utc, account),
@@ -95,13 +95,13 @@ def get_totals_by_period(connection, pricing, account=None):
 
 
 def get_daily_usage(connection, pricing, days=10, account=None):
-    """Per-day token/cost totals for the trailing `days` Kyiv-local days
+    """Per-day token/cost totals for the trailing `days` local days
     (oldest first, today last), zero-filled for days with no usage."""
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_starts_kyiv = [start_of_today_kyiv - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_starts_local = [start_of_today_local - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
 
-    earliest_utc_iso = day_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    earliest_utc_iso = day_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
@@ -119,11 +119,11 @@ def get_daily_usage(connection, pricing, days=10, account=None):
             "total_tokens": 0,
             "cost": 0.0,
         }
-        for day_start in day_starts_kyiv
+        for day_start in day_starts_local
     }
 
     for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_date = _parse_usage_timestamp(timestamp).astimezone(KYIV_TZ).strftime("%Y-%m-%d")
+        local_date = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
         bucket = by_date.get(local_date)
         if bucket is None:
             continue
@@ -136,19 +136,19 @@ def get_daily_usage(connection, pricing, days=10, account=None):
             pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
         )
 
-    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_kyiv]
+    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_local]
 
 
 def get_weekly_usage(connection, pricing, weeks=8, account=None):
-    """Per-week token/cost totals for the trailing `weeks` Kyiv-local weeks
+    """Per-week token/cost totals for the trailing `weeks` local weeks
     (Monday-start, oldest first, current week last), zero-filled for weeks
     with no usage."""
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_this_week_kyiv = start_of_today_kyiv - timedelta(days=start_of_today_kyiv.weekday())
-    week_starts_kyiv = [start_of_this_week_kyiv - timedelta(weeks=offset) for offset in range(weeks - 1, -1, -1)]
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_this_week_local = start_of_today_local - timedelta(days=start_of_today_local.weekday())
+    week_starts_local = [start_of_this_week_local - timedelta(weeks=offset) for offset in range(weeks - 1, -1, -1)]
 
-    earliest_utc_iso = week_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    earliest_utc_iso = week_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
@@ -166,11 +166,11 @@ def get_weekly_usage(connection, pricing, weeks=8, account=None):
             "total_tokens": 0,
             "cost": 0.0,
         }
-        for week_start in week_starts_kyiv
+        for week_start in week_starts_local
     }
 
     for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_dt = _parse_usage_timestamp(timestamp).astimezone(KYIV_TZ)
+        local_dt = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)
         local_week_start = (local_dt - timedelta(days=local_dt.weekday())).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -186,30 +186,30 @@ def get_weekly_usage(connection, pricing, weeks=8, account=None):
             pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
         )
 
-    return [by_week[week_start.strftime("%Y-%m-%d")] for week_start in week_starts_kyiv]
+    return [by_week[week_start.strftime("%Y-%m-%d")] for week_start in week_starts_local]
 
 
-def _months_before(month_start_kyiv, count):
-    """month_start_kyiv shifted back by `count` calendar months (day fixed at 1)."""
-    zero_based_month = month_start_kyiv.month - 1 - count
-    year = month_start_kyiv.year + zero_based_month // 12
+def _months_before(month_start_local, count):
+    """month_start_local shifted back by `count` calendar months (day fixed at 1)."""
+    zero_based_month = month_start_local.month - 1 - count
+    year = month_start_local.year + zero_based_month // 12
     month = zero_based_month % 12 + 1
-    return month_start_kyiv.replace(year=year, month=month)
+    return month_start_local.replace(year=year, month=month)
 
 
 def get_monthly_usage(connection, pricing, months=8, account=None):
-    """Per-month token/cost totals for the trailing `months` Kyiv-local
+    """Per-month token/cost totals for the trailing `months` local
     calendar months (oldest first, current month last), zero-filled for
     months with no usage."""
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_this_month_kyiv = now_kyiv.replace(
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_this_month_local = now_local.replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
-    month_starts_kyiv = [
-        _months_before(start_of_this_month_kyiv, offset) for offset in range(months - 1, -1, -1)
+    month_starts_local = [
+        _months_before(start_of_this_month_local, offset) for offset in range(months - 1, -1, -1)
     ]
 
-    earliest_utc_iso = month_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    earliest_utc_iso = month_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
@@ -227,11 +227,11 @@ def get_monthly_usage(connection, pricing, months=8, account=None):
             "total_tokens": 0,
             "cost": 0.0,
         }
-        for month_start in month_starts_kyiv
+        for month_start in month_starts_local
     }
 
     for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_dt = _parse_usage_timestamp(timestamp).astimezone(KYIV_TZ)
+        local_dt = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)
         local_month_start = local_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         bucket = by_month.get(local_month_start.strftime("%Y-%m-%d"))
         if bucket is None:
@@ -245,7 +245,7 @@ def get_monthly_usage(connection, pricing, months=8, account=None):
             pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
         )
 
-    return [by_month[month_start.strftime("%Y-%m-%d")] for month_start in month_starts_kyiv]
+    return [by_month[month_start.strftime("%Y-%m-%d")] for month_start in month_starts_local]
 
 
 def _parse_utc_iso(iso_timestamp):
@@ -507,17 +507,17 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
 
 
 def get_codex_daily_usage(connection, days=10):
-    """Per-day Codex token totals for the trailing `days` Kyiv-local days
+    """Per-day Codex token totals for the trailing `days` local days
     (oldest first, today last), zero-filled for days with no usage. Same
     shape/window as get_daily_usage but over Codex's own token categories
     (see codex_ingest.py) rather than Claude's -- no cost, since Codex model
     names in the logs are internal codenames with no published $/MTok rates
     to attach."""
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_starts_kyiv = [start_of_today_kyiv - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_starts_local = [start_of_today_local - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
 
-    earliest_utc_iso = day_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    earliest_utc_iso = day_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     try:
         rows = connection.execute(
             "SELECT timestamp, input_tokens, cached_input_tokens, output_tokens, "
@@ -536,11 +536,11 @@ def get_codex_daily_usage(connection, days=10):
             "reasoning_output_tokens": 0,
             "total_tokens": 0,
         }
-        for day_start in day_starts_kyiv
+        for day_start in day_starts_local
     }
 
     for timestamp, input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens, total_tokens in rows:
-        local_date = _parse_usage_timestamp(timestamp).astimezone(KYIV_TZ).strftime("%Y-%m-%d")
+        local_date = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
         bucket = by_date.get(local_date)
         if bucket is None:
             continue
@@ -550,7 +550,7 @@ def get_codex_daily_usage(connection, days=10):
         bucket["reasoning_output_tokens"] += reasoning_output_tokens
         bucket["total_tokens"] += total_tokens
 
-    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_kyiv]
+    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_local]
 
 
 def get_codex_rate_limits_trend(connection, window_hours=6):
@@ -746,10 +746,10 @@ def get_accounts_summary(connection, pricing):
     except sqlite3.OperationalError:
         return []
 
-    now_kyiv = datetime.now(KYIV_TZ)
-    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_today_utc = start_of_today_kyiv.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
-    start_of_month_utc = start_of_today_kyiv.replace(day=1).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_today_utc = start_of_today_local.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    start_of_month_utc = start_of_today_local.replace(day=1).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
 
     summaries = []
     for account_uuid, label, email, is_default in account_rows:

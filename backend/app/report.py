@@ -6,12 +6,10 @@ Run ingest.py first (or use it as a cron job) to populate the database.
 import argparse
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import queries
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
-KYIV_TZ = ZoneInfo("Europe/Kyiv")
 
 
 def format_tokens(count):
@@ -28,14 +26,14 @@ def format_cost(amount):
     return f"${amount:,.2f}"
 
 
-def format_kyiv(iso_timestamp):
+def format_local(iso_timestamp):
     if not iso_timestamp:
         return iso_timestamp
     try:
         parsed = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
     except ValueError:
         return iso_timestamp
-    return parsed.astimezone(KYIV_TZ).strftime("%Y-%m-%d %H:%M")
+    return parsed.astimezone(queries.LOCAL_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 def print_totals(totals):
@@ -61,7 +59,7 @@ def print_by_session(entries, limit):
         print(
             f"  {entry['session_id']}  {entry['project']:<50} "
             f"{format_tokens(entry['tokens']):>12} tokens  {format_cost(entry['cost']):>12}  "
-            f"last: {format_kyiv(entry['last_seen'])}"
+            f"last: {format_local(entry['last_seen'])}"
         )
     print()
 
@@ -72,7 +70,7 @@ def print_by_prompt(entries, limit):
         preview = (entry["preview"] or "").replace("\n", " ")[:80]
         print(
             f"  {format_cost(entry['cost']):>12}  {format_tokens(entry['tokens']):>10} tokens  "
-            f"{format_kyiv(entry['timestamp'])}  {preview}"
+            f"{format_local(entry['timestamp'])}  {preview}"
         )
     print()
 

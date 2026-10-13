@@ -162,6 +162,8 @@ class DashboardData(BaseModel):
     codex_rate_limits: list[CodexRateLimitTrend] = []
     accounts: list[AccountSummary] = []
     selected_account: Optional[str] = None
+    # IANA name of the zone the numbers are cut in and times should be shown in.
+    timezone: str = "UTC"
 
 
 class RefreshResult(BaseModel):

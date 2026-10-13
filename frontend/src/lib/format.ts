@@ -9,7 +9,14 @@ import type {
   UsageSnapshotTrend,
 } from "../api/types";
 
-const KYIV_TIME_ZONE = "Europe/Kyiv";
+// The zone times are shown in. It starts as the browser's own and is replaced
+// by the backend's configured zone as soon as data arrives, so "today" in the
+// charts and the clock times agree with how the backend cut the numbers.
+let displayTimeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+export function setDisplayTimeZone(timeZone: string): void {
+  displayTimeZone = timeZone;
+}
 
 export const PERIOD_LABELS: Record<Period, string> = {
   today: "today",
@@ -64,12 +71,12 @@ export function stackedTime(iso: string | null): StackedTime | null {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return { time: iso, date: "" };
   const time = date.toLocaleTimeString("en-GB", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
     hour: "2-digit",
     minute: "2-digit",
   });
   const dateStr = date.toLocaleDateString("en-CA", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
   });
   return { time, date: dateStr };
 }
@@ -79,41 +86,41 @@ export function fmtResetsAt(iso: string | null): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return "";
   const dateStr = date.toLocaleDateString("en-GB", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
     day: "numeric",
     month: "short",
   });
   const timeStr = date.toLocaleTimeString("en-GB", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
     hour: "2-digit",
     minute: "2-digit",
   });
   return `${dateStr} ${timeStr}`;
 }
 
-export function kyivDayLabel(date: Date): string {
+export function localDayLabel(date: Date): string {
   const dateStr = date.toLocaleDateString("en-CA", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
   });
   const todayStr = new Date().toLocaleDateString("en-CA", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
   });
   const yesterdayStr = new Date(Date.now() - 86_400_000).toLocaleDateString(
     "en-CA",
-    { timeZone: KYIV_TIME_ZONE },
+    { timeZone: displayTimeZone },
   );
   if (dateStr === todayStr) return "Today";
   if (dateStr === yesterdayStr) return "Yesterday";
   return date.toLocaleDateString("en-GB", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
     day: "numeric",
     month: "short",
   });
 }
 
-export function kyivTime(date: Date): string {
+export function localTime(date: Date): string {
   return date.toLocaleTimeString("en-GB", {
-    timeZone: KYIV_TIME_ZONE,
+    timeZone: displayTimeZone,
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -289,7 +296,7 @@ export function buildSessionStatsView(
   const resetsDate = new Date(stats.resets_at);
   const remainingMinutes = (resetsDate.getTime() - Date.now()) / 60_000;
   const windowLabel =
-    `${kyivTime(startDate)} → ${kyivTime(resetsDate)}` +
+    `${localTime(startDate)} → ${localTime(resetsDate)}` +
     ` (${remainingMinutes >= 0 ? fmtDuration(remainingMinutes) + " left" : "reset overdue"})`;
 
   let exhaustionText = "not enough data";
@@ -298,7 +305,7 @@ export function buildSessionStatsView(
     const exhaustionDate = new Date(stats.projected_exhaustion_at);
     const marginMinutes =
       (exhaustionDate.getTime() - resetsDate.getTime()) / 60_000;
-    const clockLabel = `${kyivDayLabel(exhaustionDate)} ${kyivTime(exhaustionDate)}`;
+    const clockLabel = `${localDayLabel(exhaustionDate)} ${localTime(exhaustionDate)}`;
     if (marginMinutes < 0) {
       exhaustionClass = "text-danger";
       exhaustionText = `~${clockLabel} (before reset)`;

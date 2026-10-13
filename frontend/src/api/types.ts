@@ -150,6 +150,7 @@ export interface DashboardData {
   codex_rate_limits: CodexRateLimitTrend[];
   accounts: AccountSummary[];
   selected_account: string | null;
+  timezone: string;
 }
 
 export interface RefreshResult {

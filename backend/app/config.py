@@ -8,7 +8,7 @@ where the repository is checked out.
     database         TOKEN_TRACKER_DB      db      <data directory>/token_tracker.db
     Claude Code dir  CLAUDE_CONFIG_DIR     claude_dir  ~/.claude
     Codex dir        CODEX_HOME            codex_dir   ~/.codex
-    time zone        TOKEN_TRACKER_TZ      timezone    system zone, else UTC
+    time zone        TOKEN_TRACKER_TZ      timezone    TZ, then the system zone, else UTC
 
 `config.toml` uses the lowercase names above as keys, e.g. `timezone = "Europe/Kyiv"`.
 Values are read once at import, so restart the server after changing them.
@@ -76,6 +76,34 @@ def db_path() -> Path:
         )
         return LEGACY_DB_PATH
     return default
+
+
+def _zone(name):
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        _warn_once(f"unknown time zone {name!r}, ignoring it")
+        return None
+
+
+def _system_zone_name():
+    """IANA name of the system zone: /etc/localtime points into the zoneinfo
+    database on macOS and most Linux distributions."""
+    try:
+        target = os.path.realpath("/etc/localtime")
+    except OSError:
+        return None
+    marker = "zoneinfo/"
+    return target.split(marker, 1)[1] if marker in target else None
+
+
+def timezone() -> ZoneInfo:
+    """The zone "today", "this week" and "this month" are cut in, and the one
+    times are shown in. Defaults to the system zone, else UTC."""
+    for name in (_setting("TOKEN_TRACKER_TZ", "timezone"), os.environ.get("TZ"), _system_zone_name()):
+        if name and (zone := _zone(name)):
+            return zone
+    return ZoneInfo("UTC")
 
 
 def claude_dir() -> Path:

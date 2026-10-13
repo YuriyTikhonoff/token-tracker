@@ -68,7 +68,8 @@
 <script>
 const API_URL = "/api/data";
 const REFRESH_API_URL = "/api/refresh";
-const KYIV_TZ = "Europe/Kyiv";
+// Replaced by the backend's configured zone (data.timezone) on every poll.
+let DISPLAY_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const params = new URLSearchParams(location.search);
 // ?poll=30  -> re-read the DB every 30s (default 60). ?refresh=1 -> also kick
@@ -118,8 +119,8 @@ function fmtResetsAt(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { timeZone: KYIV_TZ, day: "numeric", month: "short" }) +
-    " " + d.toLocaleTimeString("en-GB", { timeZone: KYIV_TZ, hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("en-GB", { timeZone: DISPLAY_TZ, day: "numeric", month: "short" }) +
+    " " + d.toLocaleTimeString("en-GB", { timeZone: DISPLAY_TZ, hour: "2-digit", minute: "2-digit" });
 }
 // Daily chart is glanceable, not precise: tokens as whole millions, cost as
 // whole dollars, both unlabelled.
@@ -259,6 +260,7 @@ async function tick() {
     const res = await fetch(API_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (data.timezone) DISPLAY_TZ = data.timezone;
     render(data);
     return data;
   } catch (e) {

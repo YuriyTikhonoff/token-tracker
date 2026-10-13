@@ -66,6 +66,10 @@ back to a default. Restart the backend after changing them.
 | Database | `TOKEN_TRACKER_DB` | `db` | `<data directory>/token_tracker.db` |
 | Claude Code directory | `CLAUDE_CONFIG_DIR` | `claude_dir` | `~/.claude` |
 | Codex directory | `CODEX_HOME` | `codex_dir` | `~/.codex` |
+| Time zone | `TOKEN_TRACKER_TZ` | `timezone` | `TZ`, then the system zone, else UTC |
+
+The time zone decides where "today", "this week" and "this month" start and
+which clock the dashboard shows; use an IANA name such as `Europe/Kyiv`.
 
 Prices live in `backend/app/pricing.json`. Put your own entries in
 `<data directory>/pricing.json`; they replace the shipped entry for the same

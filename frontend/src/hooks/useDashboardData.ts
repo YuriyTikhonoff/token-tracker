@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "../api/client";
 import type { DashboardData } from "../api/types";
+import { setDisplayTimeZone } from "../lib/format";
 
 export const DASHBOARD_DATA_QUERY_KEY = ["dashboard-data"] as const;
 
@@ -10,10 +11,13 @@ export const DASHBOARD_DATA_QUERY_KEY = ["dashboard-data"] as const;
 export function useDashboardData(account: string | null) {
   return useQuery({
     queryKey: [...DASHBOARD_DATA_QUERY_KEY, account],
-    queryFn: () =>
-      fetchJson<DashboardData>(
+    queryFn: async () => {
+      const data = await fetchJson<DashboardData>(
         account ? `/api/data?account=${encodeURIComponent(account)}` : "/api/data",
-      ),
+      );
+      setDisplayTimeZone(data.timezone);
+      return data;
+    },
     refetchInterval: 30_000,
     // Keep the previous account's numbers on screen while the next loads
     // instead of unmounting the whole dashboard.

@@ -13,6 +13,7 @@ import time
 
 from fastapi import APIRouter, Depends, Request
 
+import config
 import queries
 from db import DEFAULT_DB_PATH, get_db
 from schemas import DashboardData
@@ -63,6 +64,7 @@ def _build_payload(
             prompt_log_total=0,
             codex_daily_usage=[],
             codex_rate_limits=[],
+            timezone=config.timezone().key,
         )
 
     pricing = request.app.state.pricing
@@ -84,6 +86,7 @@ def _build_payload(
         codex_rate_limits=queries.get_codex_rate_limits_trend(connection),
         accounts=queries.get_accounts_summary(connection, pricing),
         selected_account=account,
+        timezone=config.timezone().key,
     )
 
 
