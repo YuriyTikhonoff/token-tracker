@@ -254,3 +254,7 @@ possible v2 if it turns out to be useful.
 - No pruning/retention policy on `token_tracker.db` — it grows indefinitely.
   Not a problem yet, but revisit if it becomes one.
 </content>
+
+## License
+
+[MIT](LICENSE)
