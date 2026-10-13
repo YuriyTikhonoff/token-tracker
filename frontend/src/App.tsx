@@ -61,7 +61,7 @@ function App() {
             />
             <DailyTokensChart days={data.daily_usage} />
           </div>
-          <CollapsibleSection title="Codex usage" defaultExpanded={true}>
+          <CollapsibleSection title="Codex usage">
             <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
               <CodexLimitsWidget snapshots={data.codex_rate_limits} />
               <CodexDailyTokensChart days={data.codex_daily_usage} />

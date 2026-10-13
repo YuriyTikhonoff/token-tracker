@@ -72,7 +72,6 @@ export function AccountsOverview({ accounts }: AccountsOverviewProps) {
           who used this machine
         </span>
       }
-      defaultExpanded={true}
     >
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[0.85rem]">

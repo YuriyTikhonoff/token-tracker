@@ -16,7 +16,7 @@ export function CollapsibleSection({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <section className="mb-8">
+    <section className={isExpanded ? "mb-6" : "mb-3"}>
       <h2
         className="flex cursor-pointer items-center gap-2 border-b border-[#262b36] pb-[0.4rem] text-[1rem] text-[#c7cbd4] select-none"
         onClick={() => setIsExpanded(!isExpanded)}
