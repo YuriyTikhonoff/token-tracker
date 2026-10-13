@@ -8,8 +8,8 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/python3</string>
-    <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/app/ingest.py</string>
+    <string>__PYTHON3__</string>
+    <string>__BACKEND_DIR__/app/ingest.py</string>
   </array>
 
   <key>StartInterval</key>
@@ -19,9 +19,9 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/logs/ingest.log</string>
+  <string>__BACKEND_DIR__/logs/ingest.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/yuritykhonov/Documents/code/personal/token-tracker/backend/logs/ingest.error.log</string>
+  <string>__BACKEND_DIR__/logs/ingest.error.log</string>
 </dict>
 </plist>

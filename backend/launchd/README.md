@@ -3,7 +3,8 @@
 Not installed automatically — loading a launchd agent starts a persistent
 background process, which is your call to make.
 
-`com.token-tracker.ingest.plist` runs `ingest.py` every 5 minutes (300s) and
+`com.token-tracker.ingest.plist` is a template (`__PYTHON3__` and
+`__BACKEND_DIR__` are filled in on install) that runs `ingest.py` every 5 minutes (300s) and
 once immediately on load, logging to `../logs/ingest.log` /
 `../logs/ingest.error.log`.
 
@@ -12,7 +13,9 @@ once immediately on load, logging to `../logs/ingest.log` /
 Run from the `backend/` directory:
 
 ```bash
-cp launchd/com.token-tracker.ingest.plist ~/Library/LaunchAgents/
+mkdir -p logs
+sed -e "s|__PYTHON3__|$(command -v python3)|" -e "s|__BACKEND_DIR__|$PWD|" \
+  launchd/com.token-tracker.ingest.plist > ~/Library/LaunchAgents/com.token-tracker.ingest.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.token-tracker.ingest.plist
 ```
 

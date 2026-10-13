@@ -76,10 +76,10 @@ One script, `backend/hooks/record_account.py`, is registered for two events in
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "python3 <repo>/token-tracker/backend/hooks/record_account.py" }] }
+      { "hooks": [{ "type": "command", "command": "python3 <repo>/backend/hooks/record_account.py" }] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "python3 <repo>/token-tracker/backend/hooks/record_account.py" }] }
+      { "hooks": [{ "type": "command", "command": "python3 <repo>/backend/hooks/record_account.py" }] }
     ]
   }
 }
@@ -141,7 +141,7 @@ source `backend/aliases.sh` once to get short commands usable from any
 directory:
 
 ```bash
-echo 'source /Users/yuritykhonov/Documents/code/personal/token-tracker/backend/aliases.sh' >> ~/.zshrc
+echo "source $PWD/backend/aliases.sh" >> ~/.zshrc   # run from the repo root
 ```
 
 Then open a new terminal (or `source ~/.zshrc`) and use:
@@ -228,7 +228,7 @@ Not installed automatically — it edits your shell startup file, which is
 your call to make. To enable:
 
 ```bash
-echo 'source /Users/yuritykhonov/Documents/code/personal/token-tracker/backend/shell-hook/capture.sh' >> ~/.zshrc
+echo "source $PWD/backend/shell-hook/capture.sh" >> ~/.zshrc   # run from the repo root
 ```
 
 Then open a new terminal (or `source ~/.zshrc`). Every interactively typed

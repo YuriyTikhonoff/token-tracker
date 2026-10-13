@@ -11,7 +11,7 @@
 -- suspends it whenever the window is in the background.)
 --
 -- Load it from ~/.hammerspoon/init.lua:
---   dofile("/Users/yuritykhonov/Documents/code/personal-monorepo/token-tracker/widgets/hammerspoon/token-tracker.lua")
+--   dofile("/path/to/token-tracker/widgets/hammerspoon/token-tracker.lua")
 --
 -- Hotkeys (⌘⌥⌃):
 --   T  toggle show/hide

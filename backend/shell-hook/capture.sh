@@ -5,12 +5,14 @@
 # command line itself.
 #
 # Install (not done automatically — this edits your shell startup):
-#   echo 'source /Users/yuritykhonov/Documents/code/personal/token-tracker/backend/shell-hook/capture.sh' >> ~/.zshrc
+#   echo "source $PWD/backend/shell-hook/capture.sh" >> ~/.zshrc     # run from the repo root
 # then open a new terminal (or `source ~/.zshrc`).
 #
 # Uninstall: remove that line from ~/.zshrc.
 
-_token_tracker_log="${TOKEN_TRACKER_LOG:-$HOME/Documents/code/personal/token-tracker/backend/commands.log}"
+_token_tracker_source="${BASH_SOURCE[0]:-$0}"
+_token_tracker_backend="$(cd "$(dirname "$_token_tracker_source")/.." && pwd)"
+_token_tracker_log="${TOKEN_TRACKER_LOG:-$_token_tracker_backend/commands.log}"
 
 _token_tracker_preexec() {
   local timestamp

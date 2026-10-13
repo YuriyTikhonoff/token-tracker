@@ -69,7 +69,7 @@ edits stay tracked):
 mkdir -p ~/.hammerspoon
 cat >> ~/.hammerspoon/init.lua <<'EOF'
 require("hs.ipc")  -- optional: enables the `hs` CLI
-dofile("/Users/yuritykhonov/Documents/code/personal-monorepo/token-tracker/widgets/hammerspoon/token-tracker.lua")
+dofile("/path/to/token-tracker/widgets/hammerspoon/token-tracker.lua")  -- where you cloned the repo
 EOF
 ```
 

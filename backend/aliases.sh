@@ -1,7 +1,7 @@
 # Token Tracker — shell shortcuts.
 #
 # Install (edits your shell startup — your call):
-#   echo 'source /Users/yuritykhonov/Documents/code/personal/token-tracker/backend/aliases.sh' >> ~/.zshrc
+#   echo "source $PWD/backend/aliases.sh" >> ~/.zshrc     # run from the repo root
 # then open a new terminal (or `source ~/.zshrc`).
 #
 # Uninstall: remove that line from ~/.zshrc.
@@ -13,7 +13,10 @@
 #   tt-watch      foreground loop: re-run tt-refresh every 60s until Ctrl+C
 #   tt-open       refresh, then start the dashboard (the two-step you run most often)
 
-_TOKEN_TRACKER_DIR="/Users/yuritykhonov/Documents/code/personal/token-tracker/backend"
+# Resolved from this file's own location, so the repo can live anywhere.
+# bash sets BASH_SOURCE; in zsh, $0 is the sourced file.
+_token_tracker_source="${BASH_SOURCE[0]:-$0}"
+_TOKEN_TRACKER_DIR="$(cd "$(dirname "$_token_tracker_source")" && pwd)"
 
 tt-refresh() {
   python3 "$_TOKEN_TRACKER_DIR/app/ingest.py" "$@"
