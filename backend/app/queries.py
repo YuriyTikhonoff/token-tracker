@@ -4,14 +4,14 @@ report (report.py) and the local dashboard (dashboard.py).
 Each function returns plain dicts/lists (JSON-serializable) rather than
 printing, so both consumers can format the same underlying data.
 """
-import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-DEFAULT_DB_PATH = Path(__file__).parent / "token_tracker.db"
-DEFAULT_PRICING_PATH = Path(__file__).parent / "pricing.json"
+import config
+
+DEFAULT_DB_PATH = config.db_path()
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
 
 
@@ -20,6 +20,7 @@ def connect(db_path, **kwargs) -> sqlite3.Connection:
     don't get "database is locked" while ingest.py/usage_snapshot.py hold a
     write transaction, plus a busy_timeout for the remaining writer-vs-writer
     case."""
+    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     connection = sqlite3.connect(db_path, **kwargs)
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA busy_timeout=10000")
@@ -33,9 +34,8 @@ def _account_clause(account, column="account_uuid", joiner="AND"):
     return f" {joiner} {column} = ?", (account,)
 
 
-def load_pricing(pricing_path=DEFAULT_PRICING_PATH):
-    with open(pricing_path, "r", encoding="utf-8") as file_handle:
-        return json.load(file_handle)
+def load_pricing(pricing_path=None):
+    return config.load_pricing(pricing_path)
 
 
 def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens):

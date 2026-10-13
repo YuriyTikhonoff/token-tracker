@@ -13,10 +13,11 @@ the default account -- the one that was logged in when this first ran.
 import json
 import sqlite3
 from bisect import bisect_right
-from pathlib import Path
 
-EVENTS_PATH = Path.home() / ".claude" / "token-tracker-account-events.jsonl"
-CLAUDE_JSON_PATH = Path.home() / ".claude.json"
+import config
+
+EVENTS_PATH = config.account_events_path()
+CLAUDE_JSON_PATH = config.claude_json_path()
 EVENTS_STATE_KEY = "account-events"
 
 SCHEMA = """

@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 import queries
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
-DEFAULT_PRICING_PATH = queries.DEFAULT_PRICING_PATH
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
 
 
@@ -81,7 +80,7 @@ def print_by_prompt(entries, limit):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
-    parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING_PATH)
+    parser.add_argument("--pricing", type=Path, default=None, help="Use only this pricing file")
     parser.add_argument("--top", type=int, default=15, help="Row limit for session/prompt breakdowns")
     parser.add_argument("--account", help="Only this account_uuid (default: all accounts combined)")
     args = parser.parse_args()

@@ -54,6 +54,31 @@ frontend/ (React) — polls /api/data, Refresh button triggers ingest + usage_sn
 - Both the API and the CLI report read the same `token_tracker.db` fresh on
   every request — no caching.
 
+## Configuration
+
+Nothing depends on where the repository lives. Each setting is read from an
+environment variable, then from `~/.token-tracker/config.toml`, then falls
+back to a default. Restart the backend after changing them.
+
+| What | Environment | `config.toml` key | Default |
+| --- | --- | --- | --- |
+| Data directory | `TOKEN_TRACKER_HOME` | n/a | `~/.token-tracker` |
+| Database | `TOKEN_TRACKER_DB` | `db` | `<data directory>/token_tracker.db` |
+| Claude Code directory | `CLAUDE_CONFIG_DIR` | `claude_dir` | `~/.claude` |
+| Codex directory | `CODEX_HOME` | `codex_dir` | `~/.codex` |
+
+Prices live in `backend/app/pricing.json`. Put your own entries in
+`<data directory>/pricing.json`; they replace the shipped entry for the same
+model and add new models.
+
+If you ran an older version, your database may still be at
+`backend/app/token_tracker.db`. It keeps being used (with a notice) until you
+move it, together with its `-wal` and `-shm` files, to the data directory.
+
+If you use a custom `CLAUDE_CONFIG_DIR`, set the same value in the backend's
+environment (or `claude_dir` in `config.toml`): the transcripts, the logged-in
+account (`<dir>/.claude.json`) and the account events are all read from there.
+
 ## Several accounts on one machine
 
 Claude Code transcripts do not say which account wrote them, so a hook records

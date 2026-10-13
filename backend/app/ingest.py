@@ -11,10 +11,11 @@ import re
 from pathlib import Path
 
 import accounts
+import config
 import queries
 
-DEFAULT_PROJECTS_DIR = Path.home() / ".claude" / "projects"
-DEFAULT_DB_PATH = Path(__file__).parent / "token_tracker.db"
+DEFAULT_PROJECTS_DIR = config.claude_projects_dir()
+DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 
 # Harness-injected wrapper tags that arrive as role="user" text blocks but
 # aren't something a human typed (task completion notices, slash-command

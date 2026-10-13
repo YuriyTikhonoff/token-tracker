@@ -18,10 +18,14 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-CLAUDE_DIR = Path.home() / ".claude"
+# Same rules as backend/app/config.py (this script stays stdlib-only and
+# standalone): a custom CLAUDE_CONFIG_DIR holds its own .claude.json.
+CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").expanduser()
 EVENTS_PATH = CLAUDE_DIR / "token-tracker-account-events.jsonl"
 STATE_PATH = CLAUDE_DIR / "token-tracker-account-state.json"
-CLAUDE_JSON_PATH = Path.home() / ".claude.json"
+CLAUDE_JSON_PATH = (
+    Path.home() / ".claude.json" if CLAUDE_DIR == Path.home() / ".claude" else CLAUDE_DIR / ".claude.json"
+)
 STATE_MAX_AGE_SECONDS = 7 * 24 * 3600
 
 

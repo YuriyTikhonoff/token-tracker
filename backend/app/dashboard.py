@@ -17,7 +17,6 @@ import queries
 import usage_snapshot
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
-DEFAULT_PRICING_PATH = queries.DEFAULT_PRICING_PATH
 DEFAULT_PROJECTS_DIR = ingest.DEFAULT_PROJECTS_DIR
 TOP_LIMIT = 25
 PROMPT_LOG_LIMIT = 200
@@ -536,7 +535,7 @@ def build_handler(db_path, pricing):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
-    parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING_PATH)
+    parser.add_argument("--pricing", type=Path, default=None)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()

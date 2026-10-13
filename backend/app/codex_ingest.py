@@ -23,9 +23,10 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import config
 import queries
 
-DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
+DEFAULT_SESSIONS_DIR = config.codex_sessions_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 
 SCHEMA = """
