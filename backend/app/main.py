@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 
 import queries
-from routes import data, refresh, widget
+from routes import accounts, data, refresh, widget
 
 app = FastAPI(title="Token Tracker API")
 
@@ -20,10 +20,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_origins=["tauri://localhost"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
+app.include_router(accounts.router)
 app.include_router(data.router)
 app.include_router(refresh.router)
 app.include_router(widget.router)

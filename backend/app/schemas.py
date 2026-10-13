@@ -127,6 +127,24 @@ class CodexRateLimitTrend(BaseModel):
     hours_to_limit: Optional[float] = None
 
 
+class AccountSummary(BaseModel):
+    account_uuid: str
+    label: str
+    email: Optional[str] = None
+    is_default: bool
+    today: Totals
+    month: Totals
+    all: Totals
+    last_active: Optional[str] = None
+    session_count: int
+    cost_share: float
+
+
+class AccountUpdate(BaseModel):
+    label: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
 class DashboardData(BaseModel):
     totals: Totals
     totals_by_period: TotalsByPeriod
@@ -142,6 +160,8 @@ class DashboardData(BaseModel):
     prompt_log_total: int
     codex_daily_usage: list[CodexDailyUsage] = []
     codex_rate_limits: list[CodexRateLimitTrend] = []
+    accounts: list[AccountSummary] = []
+    selected_account: Optional[str] = None
 
 
 class RefreshResult(BaseModel):

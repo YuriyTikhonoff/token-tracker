@@ -83,6 +83,7 @@ def main():
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING_PATH)
     parser.add_argument("--top", type=int, default=15, help="Row limit for session/prompt breakdowns")
+    parser.add_argument("--account", help="Only this account_uuid (default: all accounts combined)")
     args = parser.parse_args()
 
     if not args.db.exists():
@@ -91,10 +92,10 @@ def main():
     pricing = queries.load_pricing(args.pricing)
     connection = queries.connect(args.db)
 
-    print_totals(queries.get_totals(connection, pricing))
-    print_by_project(queries.get_by_project(connection, pricing))
-    print_by_session(queries.get_by_session(connection, pricing, args.top), args.top)
-    print_by_prompt(queries.get_by_prompt(connection, pricing, args.top), args.top)
+    print_totals(queries.get_totals(connection, pricing, account=args.account))
+    print_by_project(queries.get_by_project(connection, pricing, account=args.account))
+    print_by_session(queries.get_by_session(connection, pricing, args.top, account=args.account), args.top)
+    print_by_prompt(queries.get_by_prompt(connection, pricing, args.top, account=args.account), args.top)
 
     connection.close()
 

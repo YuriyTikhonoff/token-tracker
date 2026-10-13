@@ -10,6 +10,7 @@ import json
 import re
 from pathlib import Path
 
+import accounts
 import queries
 
 DEFAULT_PROJECTS_DIR = Path.home() / ".claude" / "projects"
@@ -145,7 +146,7 @@ def touch_session(connection, session_id, project, timestamp):
     )
 
 
-def process_file(connection, path, project, prompt_cache):
+def process_file(connection, path, project, prompt_cache, resolver):
     offset = get_file_offset(connection, path)
     new_prompt_count = 0
     new_meaningful_prompt_count = 0
@@ -187,10 +188,11 @@ def process_file(connection, path, project, prompt_cache):
             if entry_type == "user" and entry.get("promptId") and not entry.get("isMeta"):
                 preview = extract_preview(entry.get("message", {}).get("content"))
                 cursor = connection.execute(
-                    "INSERT INTO prompts (prompt_id, session_id, preview, timestamp) "
-                    "VALUES (?, ?, ?, ?) "
+                    "INSERT INTO prompts (prompt_id, session_id, preview, timestamp, account_uuid) "
+                    "VALUES (?, ?, ?, ?, ?) "
                     "ON CONFLICT(prompt_id) DO NOTHING",
-                    (entry["promptId"], session_id, preview, timestamp),
+                    (entry["promptId"], session_id, preview, timestamp,
+                     resolver.resolve(session_id, timestamp)),
                 )
                 if cursor.rowcount:
                     new_prompt_count += 1
@@ -205,7 +207,7 @@ def process_file(connection, path, project, prompt_cache):
                     connection.execute(
                         "INSERT INTO usage (assistant_uuid, session_id, prompt_id, model, "
                         "input_tokens, output_tokens, cache_creation_tokens, "
-                        "cache_read_tokens, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                        "cache_read_tokens, timestamp, account_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                         "ON CONFLICT(assistant_uuid) DO NOTHING",
                         (
                             uuid,
@@ -217,6 +219,7 @@ def process_file(connection, path, project, prompt_cache):
                             usage.get("cache_creation_input_tokens", 0),
                             usage.get("cache_read_input_tokens", 0),
                             timestamp,
+                            resolver.resolve(session_id, timestamp),
                         ),
                     )
 
@@ -266,6 +269,9 @@ def backfill_prompt_ids(connection, projects_dir):
 def run(projects_dir, db_path):
     connection = queries.connect(db_path)
     connection.executescript(SCHEMA)
+    # Events first: rows ingested below are attributed from them.
+    accounts.sync_events(connection)
+    resolver = accounts.AccountResolver(connection)
     prompt_cache = {}
 
     transcript_files = sorted(projects_dir.glob("*/*.jsonl"))
@@ -274,7 +280,7 @@ def run(projects_dir, db_path):
     for path in transcript_files:
         project = path.parent.name
         file_new_prompt_count, file_new_meaningful_prompt_count = process_file(
-            connection, path, project, prompt_cache
+            connection, path, project, prompt_cache, resolver
         )
         new_prompt_count += file_new_prompt_count
         new_meaningful_prompt_count += file_new_meaningful_prompt_count

@@ -54,6 +54,53 @@ frontend/ (React) — polls /api/data, Refresh button triggers ingest + usage_sn
 - Both the API and the CLI report read the same `token_tracker.db` fresh on
   every request — no caching.
 
+## Several accounts on one machine
+
+Claude Code transcripts do not say which account wrote them, so a hook records
+the logged-in account (from `~/.claude.json`). `ingest.py` reads those events
+and tags every prompt and usage row with the account that was active in its
+session at that moment. A person who `/login`s on your machine shows up as a
+separate account with no extra setup once the hooks are installed.
+
+One script, `backend/hooks/record_account.py`, is registered for two events in
+`~/.claude/settings.json`:
+
+- `SessionStart`: always records the account, so a new or resumed session
+  (also after `/clear`) is tied to whoever is logged in.
+- `UserPromptSubmit`: records only when the account differs from the last one
+  seen for the session, so a `/login` in the middle of a conversation is
+  caught at the next prompt. State lives in
+  `~/.claude/token-tracker-account-state.json` (entries expire after 7 days).
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "python3 <repo>/token-tracker/backend/hooks/record_account.py" }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "python3 <repo>/token-tracker/backend/hooks/record_account.py" }] }
+    ]
+  }
+}
+```
+
+- Usage from before the hook existed belongs to the **default** account: the
+  one logged in the first time `ingest.py` ran after this change. Change it
+  with "make default" in the dashboard's Accounts section if that was the
+  wrong one.
+- Accounts get a label from their Claude display name; click it in the
+  Accounts section to rename (e.g. "Anna").
+- With two or more accounts the dashboard shows an account switcher and an
+  Accounts section (today / month / all-time per account, combined total,
+  cost share). The switcher filters Claude usage, limits and the tables; Codex
+  numbers are not per account. `report.py --account <uuid>` does the same for
+  the CLI.
+- `/usage` limits are snapshotted for whoever is logged in at that moment, so
+  an account's limit widget only moves while that account is active.
+- A session that is not covered by a hook event (hook not installed, or the
+  hook failed) is attributed to the default account.
+
 ## Running it
 
 Two terminals, from the repo root:

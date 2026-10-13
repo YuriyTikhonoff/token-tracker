@@ -2,6 +2,8 @@ import { useIsMutating } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import type { Period } from "./api/types";
+import { AccountsOverview } from "./components/AccountsOverview";
+import { AccountSwitcher } from "./components/AccountSwitcher";
 import { ByProjectTable } from "./components/ByProjectTable";
 import { CodexDailyTokensChart } from "./components/CodexDailyTokensChart";
 import { CodexLimitsWidget } from "./components/CodexLimitsWidget";
@@ -18,10 +20,12 @@ import { TopSessionsTable } from "./components/TopSessionsTable";
 import { WidgetPreview } from "./components/WidgetPreview";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { REFRESH_MUTATION_KEY } from "./hooks/useRefresh";
+import { useSelectedAccount } from "./hooks/useSelectedAccount";
 
 function App() {
   const [activePeriod, setActivePeriod] = useState<Period>("today");
-  const { data, isFetching } = useDashboardData();
+  const [selectedAccount, setSelectedAccount] = useSelectedAccount();
+  const { data, isFetching } = useDashboardData(selectedAccount);
   const isRefreshing = useIsMutating({ mutationKey: REFRESH_MUTATION_KEY }) > 0;
 
   // Most recent prompt with an actual preview — the prompt log also contains
@@ -40,6 +44,16 @@ function App() {
       <RefreshButton lastPrompt={lastMeaningfulPrompt} />
       {data && (
         <>
+          {data.accounts.length > 1 && (
+            <>
+              <AccountSwitcher
+                accounts={data.accounts}
+                selected={selectedAccount}
+                onSelect={setSelectedAccount}
+              />
+              <AccountsOverview accounts={data.accounts} />
+            </>
+          )}
           <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
             <LimitsWidget
               snapshots={data.usage_snapshots}

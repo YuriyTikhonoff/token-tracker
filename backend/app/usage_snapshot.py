@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import accounts
 import queries
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
@@ -106,13 +107,17 @@ def run(db_path):
 
     connection = queries.connect(db_path)
     connection.executescript(SCHEMA)
+    accounts.ensure_schema(connection)
+    # /usage reports the limits of whoever is logged in right now.
+    current = accounts.read_current_account()
+    account_uuid = current["account_uuid"] if current else accounts.get_default_account_uuid(connection)
     captured_at = now_kyiv.astimezone(UTC_TZ).strftime("%Y-%m-%dT%H:%M:%SZ")
     for snapshot in snapshots:
         connection.execute(
-            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at_raw, resets_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at_raw, resets_at, account_uuid) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (captured_at, snapshot["scope"], snapshot["pct_used"],
-             snapshot["resets_at_raw"], snapshot["resets_at"]),
+             snapshot["resets_at_raw"], snapshot["resets_at"], account_uuid),
         )
     connection.commit()
     connection.close()

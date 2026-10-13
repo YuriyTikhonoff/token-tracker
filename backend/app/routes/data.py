@@ -33,19 +33,20 @@ _EMPTY_TOTALS = {
 }
 
 _cache_lock = threading.Lock()
-_cached_payload: DashboardData | None = None
-_cached_at: float = 0.0
+# Keyed by the selected account (None = everyone) so switching the dashboard's
+# account filter never serves another account's numbers.
+_cached_payloads: dict[str | None, tuple[float, DashboardData]] = {}
 
 
 def invalidate_data_cache() -> None:
     """Drop the cached payload so the next /api/data call recomputes."""
-    global _cached_payload, _cached_at
     with _cache_lock:
-        _cached_payload = None
-        _cached_at = 0.0
+        _cached_payloads.clear()
 
 
-def _build_payload(request: Request, connection: sqlite3.Connection) -> DashboardData:
+def _build_payload(
+    request: Request, connection: sqlite3.Connection, account: str | None
+) -> DashboardData:
     if not DEFAULT_DB_PATH.exists():
         return DashboardData(
             totals=_EMPTY_TOTALS,
@@ -65,35 +66,43 @@ def _build_payload(request: Request, connection: sqlite3.Connection) -> Dashboar
         )
 
     pricing = request.app.state.pricing
-    full_prompt_log = queries.get_prompt_log(connection, pricing)
+    full_prompt_log = queries.get_prompt_log(connection, pricing, account=account)
     return DashboardData(
-        totals=queries.get_totals(connection, pricing),
-        totals_by_period=queries.get_totals_by_period(connection, pricing),
-        daily_usage=queries.get_daily_usage(connection, pricing),
-        weekly_usage=queries.get_weekly_usage(connection, pricing),
-        monthly_usage=queries.get_monthly_usage(connection, pricing),
-        usage_snapshots=queries.get_usage_snapshots_trend(connection),
-        current_session_stats=queries.get_current_session_stats(connection, pricing),
-        by_project=queries.get_by_project(connection, pricing),
-        by_session=queries.get_by_session(connection, pricing, TOP_LIMIT),
-        by_prompt=queries.get_by_prompt(connection, pricing, TOP_LIMIT),
+        totals=queries.get_totals(connection, pricing, account=account),
+        totals_by_period=queries.get_totals_by_period(connection, pricing, account=account),
+        daily_usage=queries.get_daily_usage(connection, pricing, account=account),
+        weekly_usage=queries.get_weekly_usage(connection, pricing, account=account),
+        monthly_usage=queries.get_monthly_usage(connection, pricing, account=account),
+        usage_snapshots=queries.get_usage_snapshots_trend(connection, account=account),
+        current_session_stats=queries.get_current_session_stats(connection, pricing, account=account),
+        by_project=queries.get_by_project(connection, pricing, account=account),
+        by_session=queries.get_by_session(connection, pricing, TOP_LIMIT, account=account),
+        by_prompt=queries.get_by_prompt(connection, pricing, TOP_LIMIT, account=account),
         prompt_log=full_prompt_log[:PROMPT_LOG_LIMIT],
         prompt_log_total=len(full_prompt_log),
         codex_daily_usage=queries.get_codex_daily_usage(connection),
         codex_rate_limits=queries.get_codex_rate_limits_trend(connection),
+        accounts=queries.get_accounts_summary(connection, pricing),
+        selected_account=account,
     )
 
 
 @router.get("/api/data", response_model=DashboardData)
-def get_data(request: Request, connection: sqlite3.Connection = Depends(get_db)):
-    global _cached_payload, _cached_at
+def get_data(
+    request: Request,
+    account: str | None = None,
+    connection: sqlite3.Connection = Depends(get_db),
+):
+    # "all" (or no parameter) means every account combined.
+    account = None if account in (None, "", "all") else account
 
     # Serialize recompute: concurrent pollers that arrive during a rebuild wait
     # on the lock and then read the just-filled cache instead of each running
     # their own multi-second query.
     with _cache_lock:
-        if _cached_payload is not None and time.monotonic() - _cached_at < CACHE_TTL_SECONDS:
-            return _cached_payload
-        _cached_payload = _build_payload(request, connection)
-        _cached_at = time.monotonic()
-        return _cached_payload
+        cached = _cached_payloads.get(account)
+        if cached is not None and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
+            return cached[1]
+        payload = _build_payload(request, connection, account)
+        _cached_payloads[account] = (time.monotonic(), payload)
+        return payload

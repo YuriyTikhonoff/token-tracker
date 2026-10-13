@@ -120,6 +120,19 @@ export interface CodexRateLimitTrend {
   hours_to_limit: number | null;
 }
 
+export interface AccountSummary {
+  account_uuid: string;
+  label: string;
+  email: string | null;
+  is_default: boolean;
+  today: Totals;
+  month: Totals;
+  all: Totals;
+  last_active: string | null;
+  session_count: number;
+  cost_share: number;
+}
+
 export interface DashboardData {
   totals: Totals;
   totals_by_period: TotalsByPeriod;
@@ -135,6 +148,8 @@ export interface DashboardData {
   prompt_log_total: number;
   codex_daily_usage: CodexDailyUsage[];
   codex_rate_limits: CodexRateLimitTrend[];
+  accounts: AccountSummary[];
+  selected_account: string | null;
 }
 
 export interface RefreshResult {

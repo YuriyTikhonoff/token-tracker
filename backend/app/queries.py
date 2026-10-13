@@ -26,6 +26,13 @@ def connect(db_path, **kwargs) -> sqlite3.Connection:
     return connection
 
 
+def _account_clause(account, column="account_uuid", joiner="AND"):
+    """SQL fragment + params restricting rows to one account; empty for all."""
+    if not account:
+        return "", ()
+    return f" {joiner} {column} = ?", (account,)
+
+
 def load_pricing(pricing_path=DEFAULT_PRICING_PATH):
     with open(pricing_path, "r", encoding="utf-8") as file_handle:
         return json.load(file_handle)
@@ -41,12 +48,17 @@ def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tok
     ) / 1_000_000
 
 
-def get_totals(connection, pricing, since_utc_iso=None):
+def get_totals(connection, pricing, since_utc_iso=None, account=None):
     query = "SELECT model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens FROM usage"
-    params = ()
+    conditions, params = [], []
     if since_utc_iso:
-        query += " WHERE timestamp >= ?"
-        params = (since_utc_iso,)
+        conditions.append("timestamp >= ?")
+        params.append(since_utc_iso)
+    if account:
+        conditions.append("account_uuid = ?")
+        params.append(account)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
     rows = connection.execute(query, params).fetchall()
 
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "cost": 0.0}
@@ -64,7 +76,7 @@ def get_totals(connection, pricing, since_utc_iso=None):
     return totals
 
 
-def get_totals_by_period(connection, pricing):
+def get_totals_by_period(connection, pricing, account=None):
     """Totals for all time, the current Kyiv-local month, and the current
     Kyiv-local day. Boundaries are computed in Europe/Kyiv and converted to
     UTC (matching how timestamps are stored) before filtering."""
@@ -76,13 +88,13 @@ def get_totals_by_period(connection, pricing):
     start_of_month_utc = start_of_month_kyiv.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
 
     return {
-        "today": get_totals(connection, pricing, start_of_today_utc),
-        "month": get_totals(connection, pricing, start_of_month_utc),
-        "all": get_totals(connection, pricing),
+        "today": get_totals(connection, pricing, start_of_today_utc, account),
+        "month": get_totals(connection, pricing, start_of_month_utc, account),
+        "all": get_totals(connection, pricing, account=account),
     }
 
 
-def get_daily_usage(connection, pricing, days=10):
+def get_daily_usage(connection, pricing, days=10, account=None):
     """Per-day token/cost totals for the trailing `days` Kyiv-local days
     (oldest first, today last), zero-filled for days with no usage."""
     now_kyiv = datetime.now(KYIV_TZ)
@@ -90,10 +102,11 @@ def get_daily_usage(connection, pricing, days=10):
     day_starts_kyiv = [start_of_today_kyiv - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
 
     earliest_utc_iso = day_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?",
-        (earliest_utc_iso,),
+        "FROM usage WHERE timestamp >= ?" + account_sql,
+        (earliest_utc_iso, *account_params),
     ).fetchall()
 
     by_date = {
@@ -126,7 +139,7 @@ def get_daily_usage(connection, pricing, days=10):
     return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_kyiv]
 
 
-def get_weekly_usage(connection, pricing, weeks=8):
+def get_weekly_usage(connection, pricing, weeks=8, account=None):
     """Per-week token/cost totals for the trailing `weeks` Kyiv-local weeks
     (Monday-start, oldest first, current week last), zero-filled for weeks
     with no usage."""
@@ -136,10 +149,11 @@ def get_weekly_usage(connection, pricing, weeks=8):
     week_starts_kyiv = [start_of_this_week_kyiv - timedelta(weeks=offset) for offset in range(weeks - 1, -1, -1)]
 
     earliest_utc_iso = week_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?",
-        (earliest_utc_iso,),
+        "FROM usage WHERE timestamp >= ?" + account_sql,
+        (earliest_utc_iso, *account_params),
     ).fetchall()
 
     by_week = {
@@ -183,7 +197,7 @@ def _months_before(month_start_kyiv, count):
     return month_start_kyiv.replace(year=year, month=month)
 
 
-def get_monthly_usage(connection, pricing, months=8):
+def get_monthly_usage(connection, pricing, months=8, account=None):
     """Per-month token/cost totals for the trailing `months` Kyiv-local
     calendar months (oldest first, current month last), zero-filled for
     months with no usage."""
@@ -196,10 +210,11 @@ def get_monthly_usage(connection, pricing, months=8):
     ]
 
     earliest_utc_iso = month_starts_kyiv[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    account_sql, account_params = _account_clause(account)
     rows = connection.execute(
         "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?",
-        (earliest_utc_iso,),
+        "FROM usage WHERE timestamp >= ?" + account_sql,
+        (earliest_utc_iso, *account_params),
     ).fetchall()
 
     by_month = {
@@ -354,7 +369,7 @@ def _is_weekly_scope(scope):
     return "week" in scope.lower()
 
 
-def get_usage_snapshots_trend(connection, window_hours=6):
+def get_usage_snapshots_trend(connection, window_hours=6, account=None):
     """Latest subscription-usage snapshot per scope (session, weekly, ...),
     plus a projected hours-to-100% based on the pct_used rate of change over
     the trailing window. Requires usage_snapshot.py to have run at least
@@ -374,10 +389,12 @@ def get_usage_snapshots_trend(connection, window_hours=6):
     `captured_at`) -- see get_codex_rate_limits_trend for the Codex twin of
     this function, which needed the same split since it lacks an
     independent periodic poller and so drifts more visibly."""
+    account_sql, account_params = _account_clause(account, joiner="WHERE")
     try:
         rows = connection.execute(
-            "SELECT captured_at, scope, pct_used, resets_at FROM usage_snapshots "
-            "ORDER BY captured_at ASC"
+            "SELECT captured_at, scope, pct_used, resets_at FROM usage_snapshots"
+            + account_sql + " ORDER BY captured_at ASC",
+            account_params,
         ).fetchall()
     except sqlite3.OperationalError:
         return []
@@ -423,17 +440,18 @@ def get_usage_snapshots_trend(connection, window_hours=6):
 
 
 def get_current_session_stats(connection, pricing, scope="Current session", session_hours=5,
-                                window_hours=6):
+                                window_hours=6, account=None):
     """Derives the current 5h session window's start from the latest snapshot's
     resets_at, sums actual token usage logged within that window, and
     extrapolates: at the current token burn rate, when would the session's
     estimated token capacity (inferred from tokens-used / pct-used) be
     exhausted. Returns None if no snapshot with a resets_at exists yet."""
+    account_sql, account_params = _account_clause(account)
     try:
         rows = connection.execute(
             "SELECT captured_at, pct_used, resets_at FROM usage_snapshots "
-            "WHERE scope = ? AND resets_at IS NOT NULL ORDER BY captured_at ASC",
-            (scope,),
+            "WHERE scope = ? AND resets_at IS NOT NULL" + account_sql + " ORDER BY captured_at ASC",
+            (scope, *account_params),
         ).fetchall()
     except sqlite3.OperationalError:
         return None
@@ -454,8 +472,8 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
 
     usage_rows = connection.execute(
         "SELECT model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?",
-        (session_started_at,),
+        "FROM usage WHERE timestamp >= ?" + account_sql,
+        (session_started_at, *account_params),
     ).fetchall()
 
     session_tokens = 0
@@ -606,11 +624,13 @@ def get_codex_rate_limits_trend(connection, window_hours=6):
     return results
 
 
-def get_by_project(connection, pricing):
+def get_by_project(connection, pricing, account=None):
+    account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT s.project, u.model, u.input_tokens, u.output_tokens, "
         "u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u JOIN sessions s ON s.session_id = u.session_id"
+        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql,
+        account_params,
     ).fetchall()
 
     by_project = {}
@@ -625,11 +645,13 @@ def get_by_project(connection, pricing):
     return sorted(by_project.values(), key=lambda entry: -entry["cost"])
 
 
-def get_by_session(connection, pricing, limit=None):
+def get_by_session(connection, pricing, limit=None, account=None):
+    account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT s.session_id, s.project, s.first_seen, s.last_seen, "
         "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u JOIN sessions s ON s.session_id = u.session_id"
+        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql,
+        account_params,
     ).fetchall()
 
     by_session = {}
@@ -657,11 +679,13 @@ def get_by_session(connection, pricing, limit=None):
     return ranked[:limit] if limit else ranked
 
 
-def get_by_prompt(connection, pricing, limit=None):
+def get_by_prompt(connection, pricing, limit=None, account=None):
+    account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, "
         "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u LEFT JOIN prompts p ON p.prompt_id = u.prompt_id"
+        "FROM usage u LEFT JOIN prompts p ON p.prompt_id = u.prompt_id" + account_sql,
+        account_params,
     ).fetchall()
 
     by_prompt = {}
@@ -682,15 +706,17 @@ def get_by_prompt(connection, pricing, limit=None):
     return ranked[:limit] if limit else ranked
 
 
-def get_prompt_log(connection, pricing, limit=None):
+def get_prompt_log(connection, pricing, limit=None, account=None):
     """All prompts in chronological order (most recent first), with token/cost
     totals attached. Starts from `prompts` rather than `usage` so a prompt with
     no attributable usage rows (e.g. interrupted before a response) still
     appears, with zero tokens/cost."""
+    account_sql, account_params = _account_clause(account, "p.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, "
         "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM prompts p LEFT JOIN usage u ON u.prompt_id = p.prompt_id"
+        "FROM prompts p LEFT JOIN usage u ON u.prompt_id = p.prompt_id" + account_sql,
+        account_params,
     ).fetchall()
 
     by_prompt = {}
@@ -707,3 +733,43 @@ def get_prompt_log(connection, pricing, limit=None):
 
     ranked = sorted(by_prompt.values(), key=lambda entry: entry["timestamp"] or "", reverse=True)
     return ranked[:limit] if limit else ranked
+
+
+def get_accounts_summary(connection, pricing):
+    """Every known account with its today/month/all totals and last activity,
+    plus its share of the combined cost -- the "common stats" view. Independent
+    of the account filter on the rest of the payload."""
+    try:
+        account_rows = connection.execute(
+            "SELECT account_uuid, label, email, is_default FROM accounts ORDER BY is_default DESC, label"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+    now_kyiv = datetime.now(KYIV_TZ)
+    start_of_today_kyiv = now_kyiv.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_today_utc = start_of_today_kyiv.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+    start_of_month_utc = start_of_today_kyiv.replace(day=1).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+
+    summaries = []
+    for account_uuid, label, email, is_default in account_rows:
+        last_active, session_count = connection.execute(
+            "SELECT MAX(timestamp), COUNT(DISTINCT session_id) FROM usage WHERE account_uuid = ?",
+            (account_uuid,),
+        ).fetchone()
+        summaries.append({
+            "account_uuid": account_uuid,
+            "label": label,
+            "email": email,
+            "is_default": bool(is_default),
+            "today": get_totals(connection, pricing, start_of_today_utc, account_uuid),
+            "month": get_totals(connection, pricing, start_of_month_utc, account_uuid),
+            "all": get_totals(connection, pricing, account=account_uuid),
+            "last_active": last_active,
+            "session_count": session_count,
+        })
+
+    total_cost = sum(summary["all"]["cost"] for summary in summaries)
+    for summary in summaries:
+        summary["cost_share"] = summary["all"]["cost"] / total_cost if total_cost > 0 else 0.0
+    return summaries
