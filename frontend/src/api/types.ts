@@ -151,6 +151,7 @@ export interface DashboardData {
   accounts: AccountSummary[];
   selected_account: string | null;
   timezone: string;
+  unknown_models: string[];
 }
 
 export interface RefreshResult {

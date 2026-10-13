@@ -735,6 +735,16 @@ def get_prompt_log(connection, pricing, limit=None, account=None):
     return ranked[:limit] if limit else ranked
 
 
+def get_unknown_models(connection, pricing):
+    """Models that appear in the usage data but have no entry in the pricing
+    table: their cost is counted at `_default`, so it is only a rough guess."""
+    try:
+        models = [row[0] for row in connection.execute("SELECT DISTINCT model FROM usage")]
+    except sqlite3.OperationalError:
+        return []
+    return sorted(model for model in models if model and model not in pricing)
+
+
 def get_accounts_summary(connection, pricing):
     """Every known account with its today/month/all totals and last activity,
     plus its share of the combined cost -- the "common stats" view. Independent

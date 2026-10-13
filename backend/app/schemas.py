@@ -164,6 +164,8 @@ class DashboardData(BaseModel):
     selected_account: Optional[str] = None
     # IANA name of the zone the numbers are cut in and times should be shown in.
     timezone: str = "UTC"
+    # Models whose cost is only a guess because pricing.json has no entry.
+    unknown_models: list[str] = []
 
 
 class RefreshResult(BaseModel):

@@ -1,27 +1,98 @@
 {
-  "_comment": "USD per 1M tokens. Edit when Anthropic pricing changes or a new model shows up in the report's 'unknown model' warning. cache_read is typically much cheaper than input; cache_creation is typically pricier than input.",
+  "_meta": {
+    "updated": "2026-10-13",
+    "unit": "USD per 1M tokens",
+    "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "notes": "Estimates. cache_creation is the 5-minute write rate (1.25x input); the 1-hour rate (2x) is not distinguished because the database stores one cache-write total. cache_read is 0.1x input unless the model's price is published otherwise (Opus 5.5 $0.20, Fable $0.25). Haiku 5.5 prices apply to prompts up to 100K tokens. Models missing here are counted at _default and listed in the dashboard. Put your own entries in <data dir>/pricing.json."
+  },
   "_default": {
     "input": 3.0,
     "output": 15.0,
     "cache_creation": 3.75,
     "cache_read": 0.3
   },
+  "<synthetic>": {
+    "input": 0,
+    "output": 0,
+    "cache_creation": 0,
+    "cache_read": 0
+  },
+  "claude-fable-5-1": {
+    "input": 10,
+    "output": 50,
+    "cache_creation": 12.5,
+    "cache_read": 0.25
+  },
+  "claude-fable-5": {
+    "input": 10,
+    "output": 50,
+    "cache_creation": 12.5,
+    "cache_read": 0.25
+  },
+  "claude-opus-5-5": {
+    "input": 4,
+    "output": 20,
+    "cache_creation": 5.0,
+    "cache_read": 0.2
+  },
+  "claude-opus-5": {
+    "input": 5,
+    "output": 25,
+    "cache_creation": 6.25,
+    "cache_read": 0.5
+  },
+  "claude-opus-4-8": {
+    "input": 5,
+    "output": 25,
+    "cache_creation": 6.25,
+    "cache_read": 0.5
+  },
+  "claude-opus-4-7": {
+    "input": 5,
+    "output": 25,
+    "cache_creation": 6.25,
+    "cache_read": 0.5
+  },
+  "claude-opus-4-6": {
+    "input": 5,
+    "output": 25,
+    "cache_creation": 6.25,
+    "cache_read": 0.5
+  },
+  "claude-sonnet-5-5": {
+    "input": 2,
+    "output": 10,
+    "cache_creation": 2.5,
+    "cache_read": 0.2
+  },
   "claude-sonnet-5": {
-    "input": 3.0,
-    "output": 15.0,
+    "input": 2,
+    "output": 10,
+    "cache_creation": 2.5,
+    "cache_read": 0.2
+  },
+  "claude-sonnet-4-6": {
+    "input": 3,
+    "output": 15,
     "cache_creation": 3.75,
     "cache_read": 0.3
   },
-  "claude-opus-4-8": {
-    "input": 15.0,
-    "output": 75.0,
-    "cache_creation": 18.75,
-    "cache_read": 1.5
+  "claude-haiku-5-5": {
+    "input": 0.1,
+    "output": 0.5,
+    "cache_creation": 0.125,
+    "cache_read": 0.01
+  },
+  "claude-haiku-4-5": {
+    "input": 1,
+    "output": 5,
+    "cache_creation": 1.25,
+    "cache_read": 0.1
   },
   "claude-haiku-4-5-20251001": {
-    "input": 0.8,
-    "output": 4.0,
-    "cache_creation": 1.0,
-    "cache_read": 0.08
+    "input": 1,
+    "output": 5,
+    "cache_creation": 1.25,
+    "cache_read": 0.1
   }
 }

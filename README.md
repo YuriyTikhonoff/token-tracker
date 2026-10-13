@@ -219,11 +219,11 @@ Two ways to auto-refresh instead of running `ingest.py` by hand:
 - `backend/app/db.py` / `schemas.py` — SQLite connection helper and
   Pydantic response models for the API.
 - `backend/app/pricing.json` — $/1M-token rates used for cost estimates,
-  keyed by model name. **These rates are placeholders — verify against
-  current published Anthropic pricing before trusting the cost numbers;
-  only the token counts are guaranteed accurate.** Edit this file when
-  pricing changes or a new model appears (the report uses `_default` for
-  any unlisted model).
+  keyed by model name, with the date and source in `_meta`. Costs are
+  estimates: the cache-write rate is the 5-minute one, and a model with no
+  entry is counted at `_default` and listed in a notice on the dashboard.
+  Token counts are exact. Add or override models in
+  `<data directory>/pricing.json` rather than editing this file.
 - `frontend/src/App.tsx` — top-level layout wiring the dashboard components
   together.
 - `frontend/src/components/` — charts (`DailyTokensChart`,

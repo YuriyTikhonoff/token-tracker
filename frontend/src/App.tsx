@@ -42,6 +42,13 @@ function App() {
     <div>
       {(isFetching || isRefreshing) && <LoadingOverlay />}
       <RefreshButton lastPrompt={lastMeaningfulPrompt} />
+      {data && data.unknown_models.length > 0 && (
+        <div className="mb-6 text-[0.8rem] text-[#d9a441]">
+          No price for {data.unknown_models.join(", ")}: counted at the default
+          rate, so costs are rough. Add them to pricing.json in your data
+          directory.
+        </div>
+      )}
       {data && (
         <>
           {data.accounts.length > 0 && (

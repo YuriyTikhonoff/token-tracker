@@ -85,6 +85,7 @@ def _build_payload(
         codex_daily_usage=queries.get_codex_daily_usage(connection),
         codex_rate_limits=queries.get_codex_rate_limits_trend(connection),
         accounts=queries.get_accounts_summary(connection, pricing),
+        unknown_models=queries.get_unknown_models(connection, pricing),
         selected_account=account,
         timezone=config.timezone().key,
     )
