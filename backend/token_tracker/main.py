@@ -4,6 +4,7 @@ built, the web dashboard itself.
 Run with `token-tracker serve`, or for development from backend/:
 `.venv/bin/uvicorn token_tracker.main:app --reload --port 8765`.
 """
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,12 +12,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import queries
+from . import queries, schema
 from .routes import accounts, data, refresh, widget
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="Token Tracker API")
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    # A first run has no tables yet; create them so an empty install answers
+    # with zeros instead of an error.
+    connection = queries.connect(queries.DEFAULT_DB_PATH)
+    try:
+        schema.migrate(connection)
+    finally:
+        connection.close()
+    yield
+
+
+app = FastAPI(title="Token Tracker API", lifespan=lifespan)
 
 app.state.pricing = queries.load_pricing()
 

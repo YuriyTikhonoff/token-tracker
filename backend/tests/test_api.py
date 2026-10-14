@@ -84,3 +84,17 @@ def test_making_another_account_the_default_moves_the_flag(client):
 
 def test_root_answers_even_without_a_bundled_dashboard(client):
     assert client.get("/").status_code == 200
+
+
+def test_a_first_run_without_a_database_answers_with_zeros_not_an_error():
+    from token_tracker import config
+
+    for leftover in config.db_path().parent.glob("token_tracker.db*"):
+        leftover.unlink()
+    data_route.invalidate_data_cache()
+    with TestClient(app) as fresh:  # entering the context runs the startup hook
+        response = fresh.get("/api/data")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["totals"]["total_tokens"] == 0
+    assert payload["accounts"] == [] and payload["prompt_log"] == []
