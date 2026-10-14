@@ -76,7 +76,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
+    from .schema import SchemaTooNewError
+
+    try:
+        return _main(sys.argv[1:] if argv is None else argv)
+    except SchemaTooNewError as error:
+        print(f"token-tracker: {error}", file=sys.stderr)
+        return 2
+
+
+def _main(argv) -> int:
     # Lightweight path first: Claude Code runs `hook` before every prompt.
     if argv[:1] == ["hook"]:
         from . import hook

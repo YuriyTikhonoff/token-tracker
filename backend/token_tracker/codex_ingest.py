@@ -24,44 +24,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from . import queries
+from . import queries, schema
 
 DEFAULT_SESSIONS_DIR = config.codex_sessions_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS codex_file_state (
-    path TEXT PRIMARY KEY,
-    offset INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS codex_usage (
-    response_id TEXT PRIMARY KEY,
-    thread_id TEXT,
-    session_id TEXT,
-    timestamp TEXT NOT NULL,
-    input_tokens INTEGER NOT NULL DEFAULT 0,
-    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-    cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
-    output_tokens INTEGER NOT NULL DEFAULT 0,
-    reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
-    total_tokens INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS ix_codex_usage_timestamp ON codex_usage(timestamp);
-
-CREATE TABLE IF NOT EXISTS codex_rate_limits (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    captured_at TEXT NOT NULL,
-    primary_pct REAL,
-    primary_window_minutes INTEGER,
-    primary_resets_at TEXT,
-    secondary_pct REAL,
-    secondary_window_minutes INTEGER,
-    secondary_resets_at TEXT,
-    plan_type TEXT
-);
-"""
 
 
 def get_file_offset(connection, path):
@@ -176,7 +143,7 @@ def process_file(connection, path):
 
 def run(sessions_dir=DEFAULT_SESSIONS_DIR, db_path=DEFAULT_DB_PATH):
     connection = queries.connect(db_path)
-    connection.executescript(SCHEMA)
+    schema.migrate(connection)
 
     rollout_files = sorted(sessions_dir.rglob("*.jsonl")) if sessions_dir.exists() else []
     new_usage_count = 0

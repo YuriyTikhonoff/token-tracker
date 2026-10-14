@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import accounts
 from . import config
-from . import queries
+from . import queries, schema
 
 DEFAULT_PROJECTS_DIR = config.claude_projects_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
@@ -44,47 +44,6 @@ INJECTED_TAG_PATTERN = re.compile(
 def strip_injected_tags(text):
     return INJECTED_TAG_PATTERN.sub("", text)
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS file_state (
-    path TEXT PRIMARY KEY,
-    offset INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-    session_id TEXT PRIMARY KEY,
-    project TEXT NOT NULL,
-    first_seen TEXT,
-    last_seen TEXT
-);
-
-CREATE TABLE IF NOT EXISTS prompts (
-    prompt_id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    preview TEXT,
-    timestamp TEXT
-);
-
-CREATE TABLE IF NOT EXISTS uuid_prompt_map (
-    uuid TEXT PRIMARY KEY,
-    prompt_id TEXT,
-    session_id TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS usage (
-    assistant_uuid TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    prompt_id TEXT,
-    model TEXT,
-    input_tokens INTEGER NOT NULL DEFAULT 0,
-    output_tokens INTEGER NOT NULL DEFAULT 0,
-    cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-    cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-    timestamp TEXT
-);
-
-CREATE INDEX IF NOT EXISTS ix_usage_prompt_id ON usage(prompt_id);
-CREATE INDEX IF NOT EXISTS ix_usage_session_id ON usage(session_id);
-"""
 
 
 def extract_preview(message_content, limit=200):
@@ -269,7 +228,7 @@ def backfill_prompt_ids(connection, projects_dir):
 
 def run(projects_dir, db_path):
     connection = queries.connect(db_path)
-    connection.executescript(SCHEMA)
+    schema.migrate(connection)
     # Events first: rows ingested below are attributed from them.
     accounts.sync_events(connection)
     resolver = accounts.AccountResolver(connection)

@@ -15,22 +15,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import accounts
-from . import queries
+from . import queries, schema
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 UTC_TZ = ZoneInfo("UTC")
 STALE_RESET_WRAP_DAYS = 180
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS usage_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    captured_at TEXT NOT NULL,
-    scope TEXT NOT NULL,
-    pct_used REAL NOT NULL,
-    resets_at_raw TEXT,
-    resets_at TEXT
-);
-"""
 
 # e.g. "Current session: 11% used · resets Jul 8 at 4:49pm (Europe/Kiev)"
 # e.g. "Current week (Fable): 0% used"
@@ -119,8 +109,7 @@ def run(db_path):
     snapshots = parse_usage_output(capture_usage_output(), now_local)
 
     connection = queries.connect(db_path)
-    connection.executescript(SCHEMA)
-    accounts.ensure_schema(connection)
+    schema.migrate(connection)
     # /usage reports the limits of whoever is logged in right now.
     current = accounts.read_current_account()
     account_uuid = current["account_uuid"] if current else accounts.get_default_account_uuid(connection)

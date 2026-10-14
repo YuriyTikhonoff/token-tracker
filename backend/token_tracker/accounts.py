@@ -14,31 +14,11 @@ import json
 import sqlite3
 from bisect import bisect_right
 
-from . import config
+from . import config, schema
 
 EVENTS_PATH = config.account_events_path()
 CLAUDE_JSON_PATH = config.claude_json_path()
 EVENTS_STATE_KEY = "account-events"
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS accounts (
-    account_uuid TEXT PRIMARY KEY,
-    label TEXT NOT NULL,
-    email TEXT,
-    display_name TEXT,
-    is_default INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS session_accounts (
-    session_id TEXT NOT NULL,
-    ts TEXT NOT NULL,
-    account_uuid TEXT NOT NULL,
-    PRIMARY KEY (session_id, ts)
-);
-"""
-
-# Tables that get an account_uuid column, in the order they are created.
-ACCOUNT_COLUMN_TABLES = ("usage", "prompts", "usage_snapshots")
 
 
 def read_current_account(claude_json_path=CLAUDE_JSON_PATH):
@@ -55,28 +35,6 @@ def read_current_account(claude_json_path=CLAUDE_JSON_PATH):
         "email": oauth.get("emailAddress"),
         "display_name": oauth.get("displayName"),
     }
-
-
-def _table_exists(connection, table):
-    return connection.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)
-    ).fetchone() is not None
-
-
-def ensure_schema(connection):
-    """Create the account tables and add account_uuid to the usage tables that
-    exist. Safe to call repeatedly; tables created later (usage_snapshots) are
-    picked up by the next call."""
-    connection.executescript(SCHEMA)
-    for table in ACCOUNT_COLUMN_TABLES:
-        if not _table_exists(connection, table):
-            continue
-        columns = [row[1] for row in connection.execute(f"PRAGMA table_info({table})")]
-        if "account_uuid" not in columns:
-            connection.execute(f"ALTER TABLE {table} ADD COLUMN account_uuid TEXT")
-        connection.execute(
-            f"CREATE INDEX IF NOT EXISTS ix_{table}_account_uuid ON {table}(account_uuid)"
-        )
 
 
 def _default_label(email, display_name, account_uuid):
@@ -124,7 +82,7 @@ def get_default_account_uuid(connection):
 def sync_events(connection, events_path=EVENTS_PATH):
     """Load new hook events, register accounts, and make sure a default exists.
     Must run before transcripts are ingested so rows resolve correctly."""
-    ensure_schema(connection)
+    schema.migrate(connection)
 
     # The logged-in account is registered even before the hook has fired, so
     # the very first ingest still has a default for existing history.
@@ -173,11 +131,10 @@ def backfill_default(connection):
     default_uuid = get_default_account_uuid(connection)
     if not default_uuid:
         return
-    for table in ACCOUNT_COLUMN_TABLES:
-        if _table_exists(connection, table):
-            connection.execute(
-                f"UPDATE {table} SET account_uuid = ? WHERE account_uuid IS NULL", (default_uuid,)
-            )
+    for table in ("usage", "prompts", "usage_snapshots"):
+        connection.execute(
+            f"UPDATE {table} SET account_uuid = ? WHERE account_uuid IS NULL", (default_uuid,)
+        )
 
 
 class AccountResolver:
