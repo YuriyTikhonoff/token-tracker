@@ -23,7 +23,7 @@ The `Fable` weekly scope is hidden (matches the dashboard).
 
 ```text
 FastAPI backend  ──GET /widget──▶  a self-contained HTML page
-(routes/widget.py)                 (backend/app/widget.html)
+(routes/widget.py)                 (backend/token_tracker/widget.html)
        ▲                                   │ fetch('/api/data') every 60s
        │                                   ▼
        └───────────  Hammerspoon hs.webview (floating, all-Spaces) ◀── you
@@ -135,7 +135,7 @@ dial in the size against live data before copying `SCALE` into
 `token-tracker.lua`.
 
 Visual styling (colors, fonts, spacing) is in the `<style>` block of
-`backend/app/widget.html`.
+`backend/token_tracker/widget.html`.
 
 ## Notes / limitations
 

@@ -26,13 +26,13 @@ values into the Hammerspoon config.
 
 ```
 ~/.claude/projects/**/*.jsonl (Claude Code transcripts)
-        │  backend/app/ingest.py (incremental, byte-offset tracked per file)
+        │  backend/token_tracker/ingest.py (incremental, byte-offset tracked per file)
         ▼
-backend/app/token_tracker.db  ◄── usage_snapshot.py (claude -p "/usage", periodic)
+backend/token_tracker/token_tracker.db  ◄── usage_snapshot.py (claude -p "/usage", periodic)
         │
         │  queries.py (shared aggregation layer)
         ▼
-backend/app/main.py (FastAPI: /api/data, /api/refresh)
+backend/token_tracker/main.py (FastAPI: /api/data, /api/refresh)
         │
         ▼
 frontend/ (React) — polls /api/data, Refresh button triggers ingest + usage_snapshot
@@ -71,12 +71,12 @@ back to a default. Restart the backend after changing them.
 The time zone decides where "today", "this week" and "this month" start and
 which clock the dashboard shows; use an IANA name such as `Europe/Kyiv`.
 
-Prices live in `backend/app/pricing.json`. Put your own entries in
+Prices live in `backend/token_tracker/pricing.json`. Put your own entries in
 `<data directory>/pricing.json`; they replace the shipped entry for the same
 model and add new models.
 
 If you ran an older version, your database may still be at
-`backend/app/token_tracker.db`. It keeps being used (with a notice) until you
+`backend/token_tracker/token_tracker.db`. It keeps being used (with a notice) until you
 move it, together with its `-wal` and `-shm` files, to the data directory.
 
 If you use a custom `CLAUDE_CONFIG_DIR`, set the same value in the backend's
@@ -135,12 +135,12 @@ One script, `backend/hooks/record_account.py`, is registered for two events in
 Two terminals, from the repo root:
 
 ```bash
-# terminal 1 — backend
-cd backend/app
-source ../.venv/bin/activate   # first time: python3 -m venv ../.venv && pip install -e ..
-uvicorn main:app --port 8765
+# terminal 1: backend
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -e .   # first time only
+.venv/bin/uvicorn token_tracker.main:app --port 8765
 
-# terminal 2 — frontend
+# terminal 2: frontend
 cd frontend
 npm install   # first time only
 npm run dev   # http://localhost:5173 (or next free port)
@@ -154,10 +154,10 @@ need to point it elsewhere — the backend's CORS allows any localhost port).
 
 ```bash
 # Parse/refresh the local database (safe to re-run; incremental)
-python3 backend/app/ingest.py
+python3 -m token_tracker.ingest
 
 # Print totals, by-project, by-session, and top-prompt reports
-python3 backend/app/report.py --top 15
+python3 -m token_tracker.report --top 15
 ```
 
 Re-run `ingest.py` any time (cron, a loop, or manually) to pick up new
@@ -165,7 +165,7 @@ sessions/turns.
 
 ### Shortcuts (optional)
 
-Instead of typing `python3 /full/path/to/backend/app/ingest.py` every time,
+Instead of typing `python3 /full/path/to/backend/token_tracker/ingest.py` every time,
 source `backend/aliases.sh` once to get short commands usable from any
 directory:
 
@@ -198,27 +198,25 @@ Two ways to auto-refresh instead of running `ingest.py` by hand:
 
 ## Files
 
-- `backend/app/main.py` — FastAPI app (CORS, router registration).
-- `backend/app/routes/data.py` — `GET /api/data`, assembles the full
+- `backend/token_tracker/main.py` — FastAPI app (CORS, router registration).
+- `backend/token_tracker/routes/data.py` — `GET /api/data`, assembles the full
   dashboard payload via `queries.py`.
-- `backend/app/routes/refresh.py` — `POST /api/refresh`, runs `ingest.py` +
+- `backend/token_tracker/routes/refresh.py` — `POST /api/refresh`, runs `ingest.py` +
   `usage_snapshot.py` on demand.
-- `backend/app/ingest.py` — parses transcripts into `token_tracker.db`
-  (SQLite, created on first run in `backend/app/`, gitignored).
-- `backend/app/queries.py` — shared read/aggregation layer used by both
+- `backend/token_tracker/ingest.py` — parses transcripts into `token_tracker.db`
+  (SQLite, created on first run in `backend/token_tracker/`, gitignored).
+- `backend/token_tracker/queries.py` — shared read/aggregation layer used by both
   `report.py` and the API routes.
-- `backend/app/report.py` — CLI text report (totals/by-project/by-session/
+- `backend/token_tracker/report.py` — CLI text report (totals/by-project/by-session/
   top-prompts).
-- `backend/app/dashboard.py` — original stdlib-only (no FastAPI/React)
-  dashboard; kept as a zero-dependency fallback (see below).
-- `backend/app/usage_snapshot.py` — polls `claude -p "/usage"` for
+- `backend/token_tracker/usage_snapshot.py` — polls `claude -p "/usage"` for
   subscription session/weekly limit tracking.
-- `backend/app/codex_ingest.py` — parses Codex CLI's own rollout logs
+- `backend/token_tracker/codex_ingest.py` — parses Codex CLI's own rollout logs
   (`~/.codex/sessions/**/*.jsonl`) for token usage and rate limits — see
   [CODEX.md](CODEX.md).
-- `backend/app/db.py` / `schemas.py` — SQLite connection helper and
+- `backend/token_tracker/db.py` / `schemas.py` — SQLite connection helper and
   Pydantic response models for the API.
-- `backend/app/pricing.json` — $/1M-token rates used for cost estimates,
+- `backend/token_tracker/pricing.json` — $/1M-token rates used for cost estimates,
   keyed by model name, with the date and source in `_meta`. Costs are
   estimates: the cache-write rate is the 5-minute one, and a model with no
   entry is counted at `_default` and listed in a notice on the dashboard.
@@ -236,20 +234,6 @@ Two ways to auto-refresh instead of running `ingest.py` by hand:
   `/api/data`.
 - `frontend/src/api/` — typed fetch client + response types for the
   backend API.
-
-## Fallback: stdlib-only dashboard (no npm/venv)
-
-If you just want a quick check without installing anything beyond the
-Python standard library:
-
-```bash
-python3 backend/app/dashboard.py      # http://127.0.0.1:8765
-```
-
-This is the original dashboard implementation (hand-rolled
-`http.server` + inline HTML/CSS/JS) and reads the same `token_tracker.db`.
-It has no auto-refresh — reload the page after `ingest.py` runs, or use the
-in-app Refresh button.
 
 ## Manual terminal command capture (optional, zsh only)
 

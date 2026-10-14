@@ -16,14 +16,14 @@ A migration is in progress to a FastAPI + Vite/React (TS) + Tauri stack —
 see [PLAN.md](PLAN.md) for the phased plan. The repo has been restructured
 into `backend/`/`frontend/`/`desktop/` in anticipation of that (frontend/
 desktop don't exist yet); everything described below still runs exactly as
-before, just from `backend/app/` instead of the repo root.
+before, just from `backend/token_tracker/` instead of the repo root.
 
 ## Stack
 
 - **Language**: Python 3 (3.14.6 locally), currently standard library only
   at runtime — `backend/pyproject.toml` now declares `fastapi`/`uvicorn` as
   dependencies for the upcoming migration, but nothing imports them yet.
-- **Storage**: SQLite (`backend/app/token_tracker.db`, gitignored, ~17MB
+- **Storage**: SQLite (`backend/token_tracker/token_tracker.db`, gitignored, ~17MB
   locally). Accessed via the stdlib `sqlite3` module, raw SQL (no ORM —
   staying that way deliberately, see PLAN.md).
 - **Web dashboard**: `http.server.ThreadingHTTPServer` +
@@ -79,9 +79,9 @@ alongside `backend/` as later migration phases land — see PLAN.md.
 
 ```
 ~/.claude/projects/**/*.jsonl (Claude Code transcripts)
-        │  backend/app/ingest.py (incremental, offset-tracked per file)
+        │  backend/token_tracker/ingest.py (incremental, offset-tracked per file)
         ▼
-backend/app/token_tracker.db  ◄── usage_snapshot.py (claude -p "/usage", periodic)
+backend/token_tracker/token_tracker.db  ◄── usage_snapshot.py (claude -p "/usage", periodic)
         │
         │  queries.py (shared aggregation/query functions)
         ▼

@@ -10,9 +10,9 @@ import json
 import re
 from pathlib import Path
 
-import accounts
-import config
-import queries
+from . import accounts
+from . import config
+from . import queries
 
 DEFAULT_PROJECTS_DIR = config.claude_projects_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH

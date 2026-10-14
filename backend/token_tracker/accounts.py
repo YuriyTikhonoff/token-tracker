@@ -14,7 +14,7 @@ import json
 import sqlite3
 from bisect import bisect_right
 
-import config
+from . import config
 
 EVENTS_PATH = config.account_events_path()
 CLAUDE_JSON_PATH = config.claude_json_path()

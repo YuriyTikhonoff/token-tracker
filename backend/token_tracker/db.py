@@ -7,7 +7,7 @@ no pooling library needed.
 import sqlite3
 from pathlib import Path
 
-import queries
+from . import queries
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 

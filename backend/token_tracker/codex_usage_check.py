@@ -15,7 +15,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-import codex_ingest
+from . import codex_ingest
 
 DEFAULT_SESSIONS_DIR = codex_ingest.DEFAULT_SESSIONS_DIR
 DEFAULT_DB_PATH = codex_ingest.DEFAULT_DB_PATH

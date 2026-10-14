@@ -7,7 +7,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-import queries
+from . import queries
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 

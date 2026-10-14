@@ -13,10 +13,10 @@ import time
 
 from fastapi import APIRouter, Depends, Request
 
-import config
-import queries
-from db import DEFAULT_DB_PATH, get_db
-from schemas import DashboardData
+from .. import config
+from .. import queries
+from ..db import DEFAULT_DB_PATH, get_db
+from ..schemas import DashboardData
 
 router = APIRouter()
 

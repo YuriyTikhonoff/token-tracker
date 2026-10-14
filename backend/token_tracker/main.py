@@ -5,8 +5,8 @@ Run with: uvicorn main:app --reload --port 8000 (from backend/app/).
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 
-import queries
-from routes import accounts, data, refresh, widget
+from . import queries
+from .routes import accounts, data, refresh, widget
 
 app = FastAPI(title="Token Tracker API")
 

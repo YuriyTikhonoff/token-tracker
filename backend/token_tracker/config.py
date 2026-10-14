@@ -22,8 +22,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 APP_DIR = Path(__file__).parent
 SHIPPED_PRICING_PATH = APP_DIR / "pricing.json"
-# Before the data directory existed the database lived next to the code.
-LEGACY_DB_PATH = APP_DIR / "token_tracker.db"
+# Before the data directory existed the database lived in backend/app/, next to
+# the code of that time.
+LEGACY_DB_PATH = APP_DIR.parent / "app" / "token_tracker.db"
 
 
 def data_dir() -> Path:

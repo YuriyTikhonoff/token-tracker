@@ -33,7 +33,7 @@ carry what's needed, both written once per turn:
 
 Unlike Claude (where subscription-limit tracking has to shell out to
 `claude -p "/usage"` and regex-parse its text output — see
-`backend/app/usage_snapshot.py`), Codex logs its rate-limit snapshot
+`backend/token_tracker/usage_snapshot.py`), Codex logs its rate-limit snapshot
 passively on every turn, so `codex_ingest.py` normally only reads the
 rollout files already on disk — no extra CLI call, no extra tokens spent.
 
@@ -41,7 +41,7 @@ The tradeoff: that reading is only as fresh as the last real turn the user
 happened to run. There's no free/side-effect-free "codex status" check —
 forcing a fresh reading means running an actual `codex exec` turn, which is
 really billed (~15k tokens observed for a one-word reply). See
-`backend/app/codex_usage_check.py`, which runs a trivial `codex exec` and
+`backend/token_tracker/codex_usage_check.py`, which runs a trivial `codex exec` and
 then re-runs `codex_ingest.py` to pick up the fresh rate-limit line it
 wrote. Because of that cost, this only runs when a user explicitly clicks
 the dashboard's Refresh button (`POST /api/refresh?trigger_codex_usage_check=true`)
@@ -50,7 +50,7 @@ timer loop (unlike `usage_snapshot.py`, which does run there).
 
 ## Backend
 
-- `backend/app/codex_ingest.py` — parses the rollout JSONL files
+- `backend/token_tracker/codex_ingest.py` — parses the rollout JSONL files
   incrementally (byte-offset tracked per file, same pattern as
   `ingest.py`), upserting into two new tables:
   - `codex_usage` (`response_id` primary key, thread/session id, timestamp,
@@ -109,7 +109,7 @@ Nothing extra to install — `codex_ingest.py` runs automatically as part of
 and `usage_snapshot.py`. To run it standalone:
 
 ```bash
-python3 backend/app/codex_ingest.py
+python3 -m token_tracker.codex_ingest
 ```
 
 Safe to re-run any time; each rollout file's read offset is persisted in
@@ -119,7 +119,7 @@ Safe to re-run any time; each rollout file's read offset is persisted in
 
 - No cost estimate (see "What it tracks" above — no reliable per-model
   pricing for Codex's internal model codenames).
-- The Hammerspoon floating widget (`widgets/hammerspoon/`, `backend/app/
+- The Hammerspoon floating widget (`widgets/hammerspoon/`, `backend/token_tracker/
   widget.html`) intentionally does **not** show Codex data yet — this
   pass was scoped to the web dashboard only.
 - `codex_usage` sums every turn found in the rollout logs, including

@@ -18,16 +18,24 @@
 _token_tracker_source="${BASH_SOURCE[0]:-$0}"
 _TOKEN_TRACKER_DIR="$(cd "$(dirname "$_token_tracker_source")" && pwd)"
 
+# Runs a token_tracker module from this checkout, with the checkout's own
+# virtualenv when there is one.
+_tt() {
+  local python="$_TOKEN_TRACKER_DIR/.venv/bin/python"
+  [ -x "$python" ] || python="$(command -v python3)"
+  PYTHONPATH="$_TOKEN_TRACKER_DIR${PYTHONPATH:+:$PYTHONPATH}" "$python" "$@"
+}
+
 tt-refresh() {
-  python3 "$_TOKEN_TRACKER_DIR/app/ingest.py" "$@"
+  _tt -m token_tracker.ingest "$@"
 }
 
 tt-report() {
-  python3 "$_TOKEN_TRACKER_DIR/app/report.py" "$@"
+  _tt -m token_tracker.report "$@"
 }
 
 tt-dashboard() {
-  python3 "$_TOKEN_TRACKER_DIR/app/dashboard.py" "$@"
+  _tt -m uvicorn token_tracker.main:app --host 127.0.0.1 --port 8765 "$@"
 }
 
 tt-watch() {

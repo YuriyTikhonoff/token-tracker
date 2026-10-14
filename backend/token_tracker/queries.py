@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import config
+from . import config
 
 DEFAULT_DB_PATH = config.db_path()
 LOCAL_TZ = config.timezone()
