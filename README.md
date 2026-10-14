@@ -125,13 +125,17 @@ script, `token_tracker/hook.py`:
 - A session that is not covered by a hook event (hook not installed, or the
   hook failed) is attributed to the default account.
 
-## Running it
+## Requirements
 
-From a checkout of this repository:
+- Python 3.11 or newer
+- Node.js 22 (20.19 or newer also works), to build the dashboard
+- Claude Code, with its transcripts in `~/.claude`
+
+## Running it
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e backend
-(cd frontend && npm ci && npm run build:package)   # bundles the dashboard into the package
+(cd frontend && npm ci && npm run build:package)   # builds the dashboard (needs Node.js)
 .venv/bin/token-tracker serve                      # http://127.0.0.1:8765
 .venv/bin/token-tracker install-hooks              # optional: tell accounts apart
 ```
