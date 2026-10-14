@@ -14,6 +14,13 @@ dependencies = [
     "uvicorn[standard]>=0.32",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "httpx2>=0.1",
+    "ruff>=0.6",
+]
+
 [project.urls]
 Homepage = "https://github.com/YuriyTikhonoff/token-tracker"
 Issues = "https://github.com/YuriyTikhonoff/token-tracker/issues"
@@ -26,3 +33,16 @@ include = ["token_tracker*"]
 
 [tool.setuptools.package-data]
 token_tracker = ["pricing.json", "widget.html", "static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["app", "token_tracker/static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# E501: long lines are fine. B008: Depends() in defaults is how FastAPI is written.
+ignore = ["E501", "B008"]

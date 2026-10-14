@@ -5,7 +5,6 @@ match today's JSON exactly (snake_case, unchanged), so this is validation
 and OpenAPI docs, not a rename. queries.py itself stays untyped/dict-based
 so report.py (CLI) can keep calling it directly with no Pydantic involved.
 """
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -30,9 +29,9 @@ class UsageSnapshotTrend(BaseModel):
     pct_used: float
     captured_pct_used: float
     captured_at: str
-    resets_at: Optional[str] = None
+    resets_at: str | None = None
     rate_per_hour: float
-    hours_to_limit: Optional[float] = None
+    hours_to_limit: float | None = None
 
 
 class CurrentSessionStats(BaseModel):
@@ -42,7 +41,7 @@ class CurrentSessionStats(BaseModel):
     session_tokens: int
     session_cost: float
     tokens_per_hour: float
-    projected_exhaustion_at: Optional[str] = None
+    projected_exhaustion_at: str | None = None
 
 
 class DailyUsage(BaseModel):
@@ -84,16 +83,16 @@ class ProjectTotal(BaseModel):
 class SessionTotal(BaseModel):
     session_id: str
     project: str
-    first_seen: Optional[str] = None
-    last_seen: Optional[str] = None
+    first_seen: str | None = None
+    last_seen: str | None = None
     tokens: int
     cost: float
 
 
 class PromptTotal(BaseModel):
     prompt_id: str
-    preview: Optional[str] = None
-    timestamp: Optional[str] = None
+    preview: str | None = None
+    timestamp: str | None = None
     tokens: int
     cost: float
 
@@ -101,8 +100,8 @@ class PromptTotal(BaseModel):
 class PromptLogEntry(BaseModel):
     prompt_id: str
     session_id: str
-    preview: Optional[str] = None
-    timestamp: Optional[str] = None
+    preview: str | None = None
+    timestamp: str | None = None
     tokens: int
     cost: float
 
@@ -121,28 +120,28 @@ class CodexRateLimitTrend(BaseModel):
     pct_used: float
     captured_pct_used: float
     captured_at: str
-    resets_at: Optional[str] = None
+    resets_at: str | None = None
     window_minutes: int
     rate_per_hour: float
-    hours_to_limit: Optional[float] = None
+    hours_to_limit: float | None = None
 
 
 class AccountSummary(BaseModel):
     account_uuid: str
     label: str
-    email: Optional[str] = None
+    email: str | None = None
     is_default: bool
     today: Totals
     month: Totals
     all: Totals
-    last_active: Optional[str] = None
+    last_active: str | None = None
     session_count: int
     cost_share: float
 
 
 class AccountUpdate(BaseModel):
-    label: Optional[str] = None
-    is_default: Optional[bool] = None
+    label: str | None = None
+    is_default: bool | None = None
 
 
 class DashboardData(BaseModel):
@@ -152,7 +151,7 @@ class DashboardData(BaseModel):
     weekly_usage: list[WeeklyUsage]
     monthly_usage: list[MonthlyUsage]
     usage_snapshots: list[UsageSnapshotTrend]
-    current_session_stats: Optional[CurrentSessionStats] = None
+    current_session_stats: CurrentSessionStats | None = None
     by_project: list[ProjectTotal]
     by_session: list[SessionTotal]
     by_prompt: list[PromptTotal]
@@ -161,7 +160,7 @@ class DashboardData(BaseModel):
     codex_daily_usage: list[CodexDailyUsage] = []
     codex_rate_limits: list[CodexRateLimitTrend] = []
     accounts: list[AccountSummary] = []
-    selected_account: Optional[str] = None
+    selected_account: str | None = None
     # IANA name of the zone the numbers are cut in and times should be shown in.
     timezone: str = "UTC"
     # Models whose cost is only a guess because pricing.json has no entry.
@@ -170,7 +169,7 @@ class DashboardData(BaseModel):
 
 class RefreshResult(BaseModel):
     new_prompt_count: int
-    usage_snapshot_count: Optional[int] = None
-    codex_new_usage_count: Optional[int] = None
+    usage_snapshot_count: int | None = None
+    codex_new_usage_count: int | None = None
     codex_usage_check_triggered: bool = False
     errors: list[str]

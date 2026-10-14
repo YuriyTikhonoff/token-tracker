@@ -10,9 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from . import accounts
-from . import config
-from . import queries, schema
+from . import accounts, config, queries, schema
 
 DEFAULT_PROJECTS_DIR = config.claude_projects_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
@@ -110,7 +108,7 @@ def process_file(connection, path, project, prompt_cache, resolver):
     offset = get_file_offset(connection, path)
     new_prompt_count = 0
     new_meaningful_prompt_count = 0
-    with open(path, "r", encoding="utf-8") as file_handle:
+    with open(path, encoding="utf-8") as file_handle:
         file_handle.seek(offset)
         new_bytes_consumed = 0
         for raw_line in file_handle:
@@ -188,6 +186,16 @@ def process_file(connection, path, project, prompt_cache, resolver):
     return new_prompt_count, new_meaningful_prompt_count
 
 
+def _resolve_prompt_id(entry, by_uuid, depth=0):
+    """Walk the parentUuid chain from `entry` back to the promptId it started from."""
+    if entry.get("promptId"):
+        return entry["promptId"]
+    parent = by_uuid.get(entry.get("parentUuid"))
+    if parent is None or depth > 100:
+        return None
+    return _resolve_prompt_id(parent, by_uuid, depth + 1)
+
+
 def backfill_prompt_ids(connection, projects_dir):
     """Re-attribute existing usage rows whose prompt_id is NULL by walking each
     transcript's parentUuid chain from the assistant entry back to a promptId.
@@ -200,20 +208,12 @@ def backfill_prompt_ids(connection, projects_dir):
             continue
         by_uuid = {e["uuid"]: e for e in entries if e.get("uuid")}
 
-        def resolve(entry, _depth=0):
-            if entry.get("promptId"):
-                return entry["promptId"]
-            parent = by_uuid.get(entry.get("parentUuid"))
-            if parent is None or _depth > 100:
-                return None
-            return resolve(parent, _depth + 1)
-
         for entry in entries:
             if entry.get("type") != "assistant" or not entry.get("uuid"):
                 continue
             if not entry.get("message", {}).get("usage"):
                 continue
-            prompt_id = resolve(entry)
+            prompt_id = _resolve_prompt_id(entry, by_uuid)
             if not prompt_id:
                 continue
             cursor = connection.execute(

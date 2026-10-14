@@ -140,12 +140,12 @@ def load_pricing(path=None) -> dict:
     """Shipped prices, with per-model entries from the user's pricing.json laid
     over them. `path` loads that one file alone (used by the CLI's --pricing)."""
     if path is not None:
-        with open(path, "r", encoding="utf-8") as file_handle:
+        with open(path, encoding="utf-8") as file_handle:
             return json.load(file_handle)
-    with open(SHIPPED_PRICING_PATH, "r", encoding="utf-8") as file_handle:
+    with open(SHIPPED_PRICING_PATH, encoding="utf-8") as file_handle:
         pricing = json.load(file_handle)
     try:
-        with open(pricing_override_path(), "r", encoding="utf-8") as file_handle:
+        with open(pricing_override_path(), encoding="utf-8") as file_handle:
             pricing.update(json.load(file_handle))
     except FileNotFoundError:
         pass

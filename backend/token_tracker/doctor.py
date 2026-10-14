@@ -22,7 +22,6 @@ def run() -> int:
     data_dir = config.data_dir()
     _line(None, "data directory", f"{data_dir}" + ("" if data_dir.exists() else " (created on first ingest)"))
 
-    claude_dir = config.claude_dir()
     projects = config.claude_projects_dir()
     transcripts = len(list(projects.glob("*/*.jsonl"))) if projects.is_dir() else 0
     healthy &= _line(projects.is_dir() and transcripts > 0, "Claude Code transcripts",

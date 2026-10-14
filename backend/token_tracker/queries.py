@@ -318,11 +318,14 @@ def _extrapolate_pct_used(snapshots, window_hours=6, now_iso=None, widen=False):
     # exact equality -- otherwise nearly every prior sample looks like a
     # "different period" and the window collapses to a single point.
     RESET_JITTER_TOLERANCE_HOURS = 1.0
-    same_period_as_latest = (
-        lambda snapshot: latest["resets_at"] is None
-        or snapshot["resets_at"] is None
-        or abs(_hours_between(snapshot["resets_at"], latest["resets_at"])) <= RESET_JITTER_TOLERANCE_HOURS
-    )
+
+    def same_period_as_latest(snapshot):
+        return (
+            latest["resets_at"] is None
+            or snapshot["resets_at"] is None
+            or abs(_hours_between(snapshot["resets_at"], latest["resets_at"])) <= RESET_JITTER_TOLERANCE_HOURS
+        )
+
     same_period_snapshots = [snapshot for snapshot in snapshots if same_period_as_latest(snapshot)]
     same_period_snapshots = _trim_to_current_cycle(same_period_snapshots)
 
@@ -465,7 +468,7 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
     now = datetime.now(ZoneInfo("UTC"))
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     latest, _rate_per_hour, pct_used = _extrapolate_pct_used(snapshots, window_hours, now_iso)
-    captured_at, resets_at = latest["captured_at"], latest["resets_at"]
+    resets_at = latest["resets_at"]
     resets_dt = _parse_utc_iso(resets_at)
     session_started_dt = resets_dt - timedelta(hours=session_hours)
     session_started_at = session_started_dt.strftime("%Y-%m-%dT%H:%M:%SZ")

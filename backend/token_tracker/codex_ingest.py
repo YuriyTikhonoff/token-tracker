@@ -20,11 +20,10 @@ line per event. Two shapes carry what we need, both written once per turn:
 """
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from . import config
-from . import queries, schema
+from . import config, queries, schema
 
 DEFAULT_SESSIONS_DIR = config.codex_sessions_dir()
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
@@ -58,14 +57,14 @@ def _truncate_to_seconds(iso_timestamp):
 def _epoch_to_iso(epoch_seconds):
     if epoch_seconds is None:
         return None
-    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.fromtimestamp(epoch_seconds, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def process_file(connection, path):
     offset = get_file_offset(connection, path)
     new_usage_count = 0
     new_rate_limit_count = 0
-    with open(path, "r", encoding="utf-8") as file_handle:
+    with open(path, encoding="utf-8") as file_handle:
         file_handle.seek(offset)
         new_bytes_consumed = 0
         for raw_line in file_handle:

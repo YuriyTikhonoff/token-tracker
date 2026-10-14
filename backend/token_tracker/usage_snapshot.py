@@ -14,8 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import accounts
-from . import queries, schema
+from . import accounts, queries, schema
 
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 UTC_TZ = ZoneInfo("UTC")

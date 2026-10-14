@@ -5,6 +5,9 @@ commands.log
 # Built dashboard bundled into the Python package (see frontend `build:package`)
 backend/token_tracker/static/
 __pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 *.pyc
 **/logs/*.log
 .venv/

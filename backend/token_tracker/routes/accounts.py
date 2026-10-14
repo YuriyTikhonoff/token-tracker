@@ -5,8 +5,8 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import get_db
-from .data import invalidate_data_cache
 from ..schemas import AccountUpdate
+from .data import invalidate_data_cache
 
 router = APIRouter()
 

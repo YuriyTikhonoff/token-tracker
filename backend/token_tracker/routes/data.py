@@ -13,8 +13,7 @@ import time
 
 from fastapi import APIRouter, Depends, Request
 
-from .. import config
-from .. import queries
+from .. import config, queries
 from ..db import DEFAULT_DB_PATH, get_db
 from ..schemas import DashboardData
 

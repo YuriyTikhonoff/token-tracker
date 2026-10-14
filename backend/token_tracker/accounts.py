@@ -11,7 +11,6 @@ Anything with no event (history from before the hook was installed) belongs to
 the default account -- the one that was logged in when this first ran.
 """
 import json
-import sqlite3
 from bisect import bisect_right
 
 from . import config, schema
@@ -24,7 +23,7 @@ EVENTS_STATE_KEY = "account-events"
 def read_current_account(claude_json_path=CLAUDE_JSON_PATH):
     """The account Claude Code is logged into right now, or None."""
     try:
-        with open(claude_json_path, "r", encoding="utf-8") as file_handle:
+        with open(claude_json_path, encoding="utf-8") as file_handle:
             oauth = json.load(file_handle).get("oauthAccount") or {}
     except (OSError, json.JSONDecodeError):
         return None
