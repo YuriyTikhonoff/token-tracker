@@ -295,7 +295,7 @@ def run(projects_dir, db_path):
     }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--projects-dir",
@@ -314,7 +314,7 @@ def main():
         action="store_true",
         help="Re-attribute existing usage rows with a missing prompt_id, then exit",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.backfill:
         connection = queries.connect(args.db)

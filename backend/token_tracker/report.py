@@ -75,13 +75,13 @@ def print_by_prompt(entries, limit):
     print()
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--pricing", type=Path, default=None, help="Use only this pricing file")
     parser.add_argument("--top", type=int, default=15, help="Row limit for session/prompt breakdowns")
     parser.add_argument("--account", help="Only this account_uuid (default: all accounts combined)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.db.exists():
         raise SystemExit(f"No database at {args.db} — run ingest.py first.")

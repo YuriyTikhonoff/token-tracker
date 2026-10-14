@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:package": "tsc -b && vite build --outDir ../backend/token_tracker/static --emptyOutDir",
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",

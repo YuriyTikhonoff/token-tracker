@@ -1,21 +1,27 @@
-"""FastAPI app — replaces dashboard.py's http.server handler.
+"""FastAPI app: the JSON API under /api, the widget page, and, when it has been
+built, the web dashboard itself.
 
-Run with: uvicorn main:app --reload --port 8000 (from backend/app/).
+Run with `token-tracker serve`, or for development from backend/:
+`.venv/bin/uvicorn token_tracker.main:app --reload --port 8765`.
 """
-from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import queries
 from .routes import accounts, data, refresh, widget
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="Token Tracker API")
 
 app.state.pricing = queries.load_pricing()
 
-# Vite dev server and the Tauri webview call this from a different origin
-# during development. Vite falls back to the next free port (5174, 5175...)
-# if 5173 is already taken by another project, so match any localhost port
-# rather than hardcoding 5173.
+# The Vite dev server runs on its own port (5173, or the next free one), so
+# match any localhost port rather than hardcoding one.
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
@@ -28,3 +34,17 @@ app.include_router(accounts.router)
 app.include_router(data.router)
 app.include_router(refresh.router)
 app.include_router(widget.router)
+
+# Last, so it never shadows the routes above.
+if (STATIC_DIR / "index.html").exists():
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="dashboard")
+else:
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def get_root() -> str:
+        return (
+            "<h1>Token Tracker API</h1>"
+            "<p>The web dashboard is not bundled in this checkout. Run <code>npm run dev</code> "
+            "in <code>frontend/</code>, or <code>npm run build:package</code> there and restart. "
+            "The data is at <a href='/api/data'>/api/data</a>.</p>"
+        )

@@ -137,10 +137,10 @@ def run(db_path):
     return snapshots
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     snapshots = run(args.db)
     if not snapshots:

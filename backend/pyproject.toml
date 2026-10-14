@@ -1,16 +1,28 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "token-tracker-backend"
+name = "token-tracker"
 version = "0.1.0"
-description = "Token Tracker backend — transcript ingest, usage snapshots, and the FastAPI dashboard API."
+description = "Claude Code (and Codex) token usage and cost, per project, session and account, read from your own local logs."
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
 ]
 
-# Not installed as a package (`pip install -e .`) — app/ is run directly via
-# `uvicorn app.main:app` with backend/ as the working directory. This file
-# just pins/documents the dependency versions; a plain
-# `pip install -r <(python -c "...")`-style venv install is enough. See
-# backend/.venv setup in the repo's dev notes.
+[project.urls]
+Homepage = "https://github.com/YuriyTikhonoff/token-tracker"
+Issues = "https://github.com/YuriyTikhonoff/token-tracker/issues"
+
+[project.scripts]
+token-tracker = "token_tracker.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["token_tracker*"]
+
+[tool.setuptools.package-data]
+token_tracker = ["pricing.json", "widget.html", "static/**/*"]

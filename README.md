@@ -91,8 +91,16 @@ and tags every prompt and usage row with the account that was active in its
 session at that moment. A person who `/login`s on your machine shows up as a
 separate account with no extra setup once the hooks are installed.
 
-One script, `backend/hooks/record_account.py`, is registered for two events in
-`~/.claude/settings.json`:
+Install the hooks once:
+
+```bash
+token-tracker install-hooks      # add --dry-run to see what would change
+```
+
+It adds two entries to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`),
+keeps everything else in the file and leaves a timestamped backup next to it.
+`token-tracker uninstall-hooks` removes them again. Both run the same
+script, `token_tracker/hook.py`:
 
 - `SessionStart`: always records the account, so a new or resumed session
   (also after `/clear`) is tied to whoever is logged in.
@@ -100,19 +108,6 @@ One script, `backend/hooks/record_account.py`, is registered for two events in
   seen for the session, so a `/login` in the middle of a conversation is
   caught at the next prompt. State lives in
   `~/.claude/token-tracker-account-state.json` (entries expire after 7 days).
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "python3 <repo>/backend/hooks/record_account.py" }] }
-    ],
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "python3 <repo>/backend/hooks/record_account.py" }] }
-    ]
-  }
-}
-```
 
 - Usage from before the hook existed belongs to the **default** account: the
   one logged in the first time `ingest.py` ran after this change. Change it
@@ -132,42 +127,65 @@ One script, `backend/hooks/record_account.py`, is registered for two events in
 
 ## Running it
 
+From a checkout of this repository:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -e backend
+(cd frontend && npm ci && npm run build:package)   # bundles the dashboard into the package
+.venv/bin/token-tracker serve                      # http://127.0.0.1:8765
+.venv/bin/token-tracker install-hooks              # optional: tell accounts apart
+```
+
+`token-tracker` commands:
+
+| Command | What it does |
+| --- | --- |
+| `serve [--host H] [--port P]` | the dashboard and API (127.0.0.1:8765 by default; the API has no login, so keep it on localhost) |
+| `ingest` | read new Claude Code transcripts into the database |
+| `snapshot` | record subscription limits (needs the `claude` CLI) |
+| `report [--top N] [--account ID]` | text report |
+| `codex` | read new Codex CLI sessions |
+| `install-hooks` / `uninstall-hooks` | add or remove the account-tracking hooks |
+| `doctor` | check the setup and say what is missing |
+
+## Development
+
 Two terminals, from the repo root:
 
 ```bash
-# terminal 1: backend
+# terminal 1: backend with auto-reload
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -e .   # first time only
-.venv/bin/uvicorn token_tracker.main:app --port 8765
+.venv/bin/uvicorn token_tracker.main:app --reload --port 8765
 
-# terminal 2: frontend
+# terminal 2: frontend dev server
 cd frontend
 npm install   # first time only
-npm run dev   # http://localhost:5173 (or next free port)
+npm run dev   # http://localhost:5177
 ```
 
 Open the frontend URL Vite prints. It talks to the backend at
 `http://127.0.0.1:8765` (see `frontend/.env` / `VITE_API_BASE_URL` if you
 need to point it elsewhere — the backend's CORS allows any localhost port).
 
-### CLI-only usage (no servers)
+### CLI-only usage (no server)
 
 ```bash
 # Parse/refresh the local database (safe to re-run; incremental)
-python3 -m token_tracker.ingest
+token-tracker ingest
 
 # Print totals, by-project, by-session, and top-prompt reports
-python3 -m token_tracker.report --top 15
+token-tracker report --top 15
 ```
 
-Re-run `ingest.py` any time (cron, a loop, or manually) to pick up new
-sessions/turns.
+Re-run `token-tracker ingest` any time (cron, a loop, or manually) to pick up
+new sessions/turns.
 
 ### Shortcuts (optional)
 
-Instead of typing `python3 /full/path/to/backend/token_tracker/ingest.py` every time,
-source `backend/aliases.sh` once to get short commands usable from any
-directory:
+If you work from a checkout rather than an installed package, source
+`backend/aliases.sh` once to get short commands usable from any directory
+(they use the checkout's own `.venv` when it exists):
 
 ```bash
 echo "source $PWD/backend/aliases.sh" >> ~/.zshrc   # run from the repo root
@@ -187,11 +205,11 @@ To uninstall, remove that line from `~/.zshrc`.
 
 ### Keeping it fresh automatically (optional)
 
-Two ways to auto-refresh instead of running `ingest.py` by hand:
+Two ways to auto-refresh instead of running the ingest by hand:
 
 - `backend/watch.sh [interval_seconds]` — foreground loop in a terminal you
   keep open (default every 60s). Nothing left running once you close it.
-- `backend/launchd/` — a macOS background agent that runs `ingest.py` every
+- `backend/launchd/` — a macOS background agent that runs the ingest every
   5 minutes even after you close the terminal. Not installed automatically;
   see [backend/launchd/README.md](backend/launchd/README.md) for
   install/uninstall steps.

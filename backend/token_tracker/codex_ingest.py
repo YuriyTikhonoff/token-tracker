@@ -195,11 +195,11 @@ def run(sessions_dir=DEFAULT_SESSIONS_DIR, db_path=DEFAULT_DB_PATH):
     }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sessions-dir", type=Path, default=DEFAULT_SESSIONS_DIR)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = run(args.sessions_dir, args.db)
     print(f"Processed {result['file_count']} rollout file(s) into {args.db}")

@@ -2,6 +2,8 @@ token_tracker.db
 token_tracker.db-shm
 token_tracker.db-wal
 commands.log
+# Built dashboard bundled into the Python package (see frontend `build:package`)
+backend/token_tracker/static/
 __pycache__/
 *.pyc
 **/logs/*.log

@@ -1,8 +1,7 @@
-// Base URL resolved by build target rather than hardcoded — desktop (Tauri)
-// and local-web builds both point at a locally-running backend, but via
-// separate .env files so there's no runtime branching logic here.
-export const API_BASE_URL: string =
-  import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8765";
+// Empty means same origin: the packaged dashboard is served by the backend
+// itself. The Vite dev server is on another port, so .env.development points
+// it at the backend.
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export async function fetchJson<T>(
   path: string,
