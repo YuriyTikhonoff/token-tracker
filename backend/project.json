@@ -6,7 +6,21 @@
     "dev": {
       "executor": "nx:run-commands",
       "options": {
-        "command": ".venv/bin/uvicorn token_tracker.main:app --reload --port 8765",
+        "command": "../.venv/bin/uvicorn token_tracker.main:app --reload --port 8765",
+        "cwd": "token-tracker/backend"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "../.venv/bin/pytest -q -W error::DeprecationWarning",
+        "cwd": "token-tracker/backend"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "../.venv/bin/ruff check .",
         "cwd": "token-tracker/backend"
       }
     }

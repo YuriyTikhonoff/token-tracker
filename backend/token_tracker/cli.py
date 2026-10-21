@@ -24,6 +24,14 @@ def _serve(args) -> int:
     return 0
 
 
+def _run(args) -> int:
+    """Refresh the database, then serve the dashboard: the command to use day to day."""
+    from . import ingest
+
+    ingest.main([])
+    return _serve(args)
+
+
 def _install_hooks(args) -> int:
     from . import hooks_install
 
@@ -58,6 +66,11 @@ def _build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(run=_serve)
+
+    run = sub.add_parser("run", help="read new transcripts, then run the dashboard (ingest + serve)")
+    run.add_argument("--host", default="127.0.0.1")
+    run.add_argument("--port", type=int, default=8765)
+    run.set_defaults(run=_run)
 
     for name, (help_text, _module) in COMMANDS.items():
         sub.add_parser(name, help=help_text, add_help=False)  # dispatched in main()

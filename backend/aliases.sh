@@ -21,7 +21,10 @@ _TOKEN_TRACKER_DIR="$(cd "$(dirname "$_token_tracker_source")" && pwd)"
 # Runs a token_tracker module from this checkout, with the checkout's own
 # virtualenv when there is one.
 _tt() {
-  local python="$_TOKEN_TRACKER_DIR/.venv/bin/python"
+  # The README puts the virtualenv one level up (token-tracker/.venv); an older
+  # layout kept it in backend/.venv.
+  local python="$_TOKEN_TRACKER_DIR/../.venv/bin/python"
+  [ -x "$python" ] || python="$_TOKEN_TRACKER_DIR/.venv/bin/python"
   [ -x "$python" ] || python="$(command -v python3)"
   PYTHONPATH="$_TOKEN_TRACKER_DIR${PYTHONPATH:+:$PYTHONPATH}" "$python" "$@"
 }

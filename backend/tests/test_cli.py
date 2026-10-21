@@ -6,7 +6,7 @@ from token_tracker import cli, hooks_install
 def test_help_lists_the_commands(capsys):
     assert cli.main([]) == 0
     out = capsys.readouterr().out
-    for command in ("serve", "ingest", "report", "install-hooks", "doctor"):
+    for command in ("serve", "run", "ingest", "report", "install-hooks", "doctor"):
         assert command in out
 
 
@@ -40,3 +40,11 @@ def test_doctor_runs_and_reports_missing_hooks(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert status == 1  # no transcripts and no hooks in an empty setup
     assert "account hooks" in out and "install-hooks" in out
+
+
+def test_run_ingests_then_serves(monkeypatch):
+    calls = []
+    monkeypatch.setattr("token_tracker.ingest.main", lambda argv: calls.append(("ingest", argv)))
+    monkeypatch.setattr(cli, "_serve", lambda args: calls.append(("serve", args.port)) or 0)
+    assert cli.main(["run", "--port", "9000"]) == 0
+    assert calls == [("ingest", []), ("serve", 9000)]

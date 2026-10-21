@@ -7,7 +7,10 @@ INTERVAL="${1:-60}"
 USAGE_SNAPSHOT_INTERVAL=600      # seconds; fallback cadence even with no new prompts
 USAGE_SNAPSHOT_MIN_INTERVAL=60   # seconds; floor between snapshots so a burst of new prompts doesn't spam the CLI
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON="${TOKEN_TRACKER_PYTHON:-$([ -x "$SCRIPT_DIR/.venv/bin/python" ] && echo "$SCRIPT_DIR/.venv/bin/python" || echo python3)}"
+if [ -x "$SCRIPT_DIR/../.venv/bin/python" ]; then DEFAULT_PYTHON="$SCRIPT_DIR/../.venv/bin/python"
+elif [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then DEFAULT_PYTHON="$SCRIPT_DIR/.venv/bin/python"
+else DEFAULT_PYTHON=python3; fi
+PYTHON="${TOKEN_TRACKER_PYTHON:-$DEFAULT_PYTHON}"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "Refreshing token-tracker DB every ${INTERVAL}s from $SCRIPT_DIR (Ctrl+C to stop)"
