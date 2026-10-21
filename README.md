@@ -37,7 +37,8 @@ python3 -m venv .venv && .venv/bin/pip install -e backend
 ```
 
 Press **Refresh** in the dashboard to pick up new activity, or run `token-tracker ingest` again.
-`token-tracker doctor` checks the setup and says what is missing.
+`token-tracker doctor` checks the setup and says what is missing. A step-by-step guide for a
+fresh machine is in [docs/SETUP.md](docs/SETUP.md).
 
 ## How it works
 
