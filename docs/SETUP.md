@@ -1,5 +1,7 @@
 # Setting up Token Tracker on another computer
 
+[Українська](SETUP.uk.md)
+
 Everything below runs on the machine whose Claude Code usage you want to see. Token Tracker reads
 the logs on that machine's disk, so it cannot show usage from a different computer.
 
@@ -42,7 +44,21 @@ Node.js is only needed for this build step. Once the bundle exists, the app runs
 The first `ingest` can take a while if you have a long history. Later runs read only what is new.
 Press **Refresh** in the dashboard, or run `ingest` again, to pick up new activity.
 
-## 4. Verify
+## 4. Run it every day
+
+```bash
+.venv/bin/token-tracker run        # reads new activity, then starts the dashboard
+```
+
+To start it from any directory, add an alias (adjust the path to your checkout):
+
+```bash
+echo "alias token-tracker='$PWD/.venv/bin/token-tracker run'" >> ~/.zshrc
+```
+
+Or `source backend/aliases.sh` (see section 6), which gives `tt-open` with the same effect.
+
+## 5. Verify
 
 ```bash
 .venv/bin/token-tracker doctor
@@ -58,7 +74,7 @@ exits with a non-zero code. Typical fixes:
 | web dashboard: not bundled in this checkout | Run `npm run build:package` in `frontend/` |
 | database ... does not exist yet | Run `token-tracker ingest` |
 
-## 5. Optional
+## 6. Optional
 
 - **Several accounts on one machine:** `.venv/bin/token-tracker install-hooks` (add `--dry-run` to
   preview). It edits `~/.claude/settings.json` and leaves a timestamped backup.
@@ -68,7 +84,7 @@ exits with a non-zero code. Typical fixes:
 - **Codex CLI usage:** `.venv/bin/token-tracker codex`, see [CODEX.md](../CODEX.md).
 - **Always-on-top desktop widget (macOS):** [widgets/hammerspoon](../widgets/hammerspoon/README.md).
 
-## 6. Configuration
+## 7. Configuration
 
 Set an environment variable, or put a key in `~/.token-tracker/config.toml`.
 
@@ -82,20 +98,20 @@ Set an environment variable, or put a key in `~/.token-tracker/config.toml`.
 Restart `serve` after changing them. If you use a custom `CLAUDE_CONFIG_DIR`, export the same value
 in every shell that runs `ingest` or `serve`.
 
-## 7. Security notes
+## 8. Security notes
 
 - The API has no login. Keep the default `127.0.0.1`; do not pass `--host 0.0.0.0` on a shared or
   public network.
 - The database holds token counts, model names, project folder names, timestamps and the first 200
   characters of each prompt. Treat `~/.token-tracker/token_tracker.db` as private.
 
-## 8. Move your existing history to the new machine
+## 9. Move your existing history to the new machine
 
 Only if you want the old numbers, not just fresh ones. Copy the database file
 (`~/.token-tracker/token_tracker.db`) into the new machine's data directory before the first
 `ingest`. Without it the new machine starts from whatever is in its own `~/.claude`.
 
-## 9. Update or remove
+## 10. Update or remove
 
 ```bash
 git pull

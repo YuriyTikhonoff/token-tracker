@@ -36,7 +36,9 @@ python3 -m venv .venv && .venv/bin/pip install -e backend
 .venv/bin/token-tracker serve                      # open http://127.0.0.1:8765
 ```
 
-Press **Refresh** in the dashboard to pick up new activity, or run `token-tracker ingest` again.
+Next time, `.venv/bin/token-tracker run` reads the new activity and starts the dashboard in one
+step. Press **Refresh** in the dashboard to pick up activity while it is running, or run
+`token-tracker ingest` again.
 `token-tracker doctor` checks the setup and says what is missing. A step-by-step guide for a
 fresh machine is in [docs/SETUP.md](docs/SETUP.md).
 
@@ -85,6 +87,7 @@ and share. Click a label to rename an account.
 
 | Command | What it does |
 | --- | --- |
+| `run [--host H] [--port P]` | `ingest`, then `serve`: the one command for everyday use |
 | `serve [--host H] [--port P]` | the dashboard and API (127.0.0.1:8765 by default; the API has no login, so keep it on localhost) |
 | `ingest` | read new Claude Code transcripts into the database |
 | `snapshot` | record the subscription limits (needs the `claude` CLI) |
