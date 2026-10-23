@@ -46,6 +46,11 @@ export interface MonthlyUsage {
   cost: number;
 }
 
+export interface UsagePoint {
+  captured_at: string;
+  pct_used: number;
+}
+
 export interface UsageSnapshotTrend {
   scope: string;
   pct_used: number;
@@ -54,6 +59,8 @@ export interface UsageSnapshotTrend {
   resets_at: string | null;
   rate_per_hour: number;
   hours_to_limit: number | null;
+  // pct_used over the current window, oldest first.
+  history: UsagePoint[];
 }
 
 export interface CurrentSessionStats {

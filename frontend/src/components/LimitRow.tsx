@@ -20,8 +20,8 @@ const BAR_FILL_COLORS: Record<ReturnType<typeof limitSeverity>, string> = {
 // Highlight for the slice of usage beyond the linear pace mark -- deliberately
 // not one of the severity colors so it reads as "ahead of pace" regardless of
 // how close to the limit you are.
-const OVER_PACE_COLOR = "#ffd23f";
-const UNDER_PACE_COLOR = "#333947";
+export const OVER_PACE_COLOR = "#ffd23f";
+export const UNDER_PACE_COLOR = "#333947";
 
 export function LimitRow({ snapshot }: LimitRowProps) {
   const severity = limitSeverity(snapshot.pct_used);

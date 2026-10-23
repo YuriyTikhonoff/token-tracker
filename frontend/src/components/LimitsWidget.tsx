@@ -1,4 +1,5 @@
 import type { CurrentSessionStats, UsageSnapshotTrend } from "../api/types";
+import { LimitPaceChart } from "./LimitPaceChart";
 import { LimitRow } from "./LimitRow";
 import { SessionStats } from "./SessionStats";
 
@@ -24,6 +25,11 @@ export function LimitsWidget({ snapshots, sessionStats }: LimitsWidgetProps) {
       <div>
         {visibleSnapshots.map((snapshot) => (
           <LimitRow key={snapshot.scope} snapshot={snapshot} />
+        ))}
+      </div>
+      <div className="mt-5 flex flex-col gap-6">
+        {visibleSnapshots.map((snapshot) => (
+          <LimitPaceChart key={snapshot.scope} snapshot={snapshot} />
         ))}
       </div>
       {sessionStats && <SessionStats stats={sessionStats} />}

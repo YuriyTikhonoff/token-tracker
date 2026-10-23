@@ -126,6 +126,22 @@ export function localTime(date: Date): string {
   });
 }
 
+// "Sat 19:00" in the display zone, for chart labels inside a week.
+export function fmtWeekdayTime(date: Date): string {
+  const weekday = date.toLocaleDateString("en-GB", {
+    timeZone: displayTimeZone,
+    weekday: "short",
+  });
+  return `${weekday} ${localTime(date)}`;
+}
+
+export function fmtWeekday(date: Date): string {
+  return date.toLocaleDateString("en-GB", {
+    timeZone: displayTimeZone,
+    weekday: "short",
+  });
+}
+
 export function fmtDuration(minutesTotal: number): string {
   const sign = minutesTotal < 0 ? "-" : "";
   const absMinutes = Math.round(Math.abs(minutesTotal));
@@ -161,11 +177,13 @@ function isWeeklyScope(scope: string): boolean {
 // % of the window's linear allowance elapsed so far, e.g. 1h into a 5h
 // session window is 20 -- the "on-pace" reference point for LimitRow's bar.
 // Null when there's no resets_at to anchor the window against.
+export function limitWindowHours(scope: string): number {
+  return isWeeklyScope(scope) ? WEEKLY_WINDOW_HOURS : SESSION_WINDOW_HOURS;
+}
+
 export function pacePercent(snapshot: UsageSnapshotTrend): number | null {
   if (!snapshot.resets_at) return null;
-  const windowHours = isWeeklyScope(snapshot.scope)
-    ? WEEKLY_WINDOW_HOURS
-    : SESSION_WINDOW_HOURS;
+  const windowHours = limitWindowHours(snapshot.scope);
   const resetsAt = new Date(snapshot.resets_at).getTime();
   const windowStartMs = resetsAt - windowHours * 3_600_000;
   const elapsedHours = (Date.now() - windowStartMs) / 3_600_000;

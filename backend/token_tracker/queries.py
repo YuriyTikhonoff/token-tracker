@@ -308,26 +308,7 @@ def _extrapolate_pct_used(snapshots, window_hours=6, now_iso=None, widen=False):
         now_iso = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     latest = snapshots[-1]
-    # pct_used resets to ~0 at the start of each new session/week window, so a
-    # trailing window that spans a reset boundary (different resets_at) would
-    # mix a near-100% sample with a near-0% one and produce a nonsense (often
-    # negative) rate. Restrict to samples from the same period as latest.
-    # resets_at itself jitters by a minute or two between captures (the CLI's
-    # text rounds to the minute and ticks over, e.g. "3:59pm" -> "4pm" for the
-    # same underlying reset instant), so compare with a tolerance rather than
-    # exact equality -- otherwise nearly every prior sample looks like a
-    # "different period" and the window collapses to a single point.
-    RESET_JITTER_TOLERANCE_HOURS = 1.0
-
-    def same_period_as_latest(snapshot):
-        return (
-            latest["resets_at"] is None
-            or snapshot["resets_at"] is None
-            or abs(_hours_between(snapshot["resets_at"], latest["resets_at"])) <= RESET_JITTER_TOLERANCE_HOURS
-        )
-
-    same_period_snapshots = [snapshot for snapshot in snapshots if same_period_as_latest(snapshot)]
-    same_period_snapshots = _trim_to_current_cycle(same_period_snapshots)
+    same_period_snapshots = _current_cycle_snapshots(snapshots)
 
     # Without a resets_at on the latest sample there's no way to tell a
     # period boundary apart from a normal sample, so widening could silently
@@ -357,6 +338,48 @@ def _extrapolate_pct_used(snapshots, window_hours=6, now_iso=None, widen=False):
     pct_used_now = max(0.0, min(100.0, pct_used_now))
 
     return latest, rate_per_hour, pct_used_now
+
+
+def _current_cycle_snapshots(snapshots):
+    """The snapshots (ascending by captured_at) that belong to the same
+    limit window as the latest one."""
+    latest = snapshots[-1]
+    # pct_used resets to ~0 at the start of each new session/week window, so a
+    # trailing window that spans a reset boundary (different resets_at) would
+    # mix a near-100% sample with a near-0% one and produce a nonsense (often
+    # negative) rate. Restrict to samples from the same period as latest.
+    # resets_at itself jitters by a minute or two between captures (the CLI's
+    # text rounds to the minute and ticks over, e.g. "3:59pm" -> "4pm" for the
+    # same underlying reset instant), so compare with a tolerance rather than
+    # exact equality -- otherwise nearly every prior sample looks like a
+    # "different period" and the window collapses to a single point.
+    RESET_JITTER_TOLERANCE_HOURS = 1.0
+
+    def same_period_as_latest(snapshot):
+        return (
+            latest["resets_at"] is None
+            or snapshot["resets_at"] is None
+            or abs(_hours_between(snapshot["resets_at"], latest["resets_at"])) <= RESET_JITTER_TOLERANCE_HOURS
+        )
+
+    same_period_snapshots = [snapshot for snapshot in snapshots if same_period_as_latest(snapshot)]
+    return _trim_to_current_cycle(same_period_snapshots)
+
+
+def _cycle_history(snapshots):
+    """The current cycle's pct_used over time, for the fact-vs-plan chart.
+    Snapshots land every few minutes but pct_used moves in whole steps, so
+    keep only the first and last sample of each flat run (plus the ends):
+    a straight line between the kept points still matches the full series,
+    and a week stays at a few hundred points instead of thousands."""
+    cycle = _current_cycle_snapshots(snapshots)
+    kept = [
+        snapshot for index, snapshot in enumerate(cycle)
+        if index in (0, len(cycle) - 1)
+        or snapshot["pct_used"] != cycle[index - 1]["pct_used"]
+        or snapshot["pct_used"] != cycle[index + 1]["pct_used"]
+    ]
+    return [{"captured_at": snapshot["captured_at"], "pct_used": snapshot["pct_used"]} for snapshot in kept]
 
 
 WEEK_SCOPE_WINDOW_HOURS = 24
@@ -437,6 +460,7 @@ def get_usage_snapshots_trend(connection, window_hours=6, account=None):
             "resets_at": resets_at,
             "rate_per_hour": rate_per_hour,
             "hours_to_limit": hours_to_limit,
+            "history": _cycle_history(snapshots),
         })
 
     return sorted(results, key=lambda entry: entry["scope"])

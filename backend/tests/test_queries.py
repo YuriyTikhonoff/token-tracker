@@ -108,3 +108,25 @@ def test_limit_snapshots_are_kept_per_account(db):
     assert [s["captured_pct_used"] for s in queries.get_usage_snapshots_trend(db, account="me")] == [10.0]
     assert [s["captured_pct_used"] for s in queries.get_usage_snapshots_trend(db, account="guest")] == [90.0]
     assert len(queries.get_usage_snapshots_trend(db)) == 1  # everyone: one entry per scope
+
+
+def test_limit_history_covers_the_current_window_and_drops_flat_runs(db):
+    samples = [
+        ("2026-10-12T20:00:00Z", 90.0, "2026-10-13T15:00:00Z"),  # previous week
+        ("2026-10-13T16:00:00Z", 0.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-13T17:00:00Z", 3.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-13T18:00:00Z", 3.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-13T19:00:00Z", 3.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-13T20:00:00Z", 3.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-14T09:00:00Z", 5.0, "2026-10-20T15:00:00Z"),
+        ("2026-10-14T10:00:00Z", 5.0, "2026-10-20T15:00:00Z"),
+    ]
+    for captured_at, pct, resets_at in samples:
+        db.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at) VALUES (?,?,?,?)",
+            (captured_at, "Current week (all models)", pct, resets_at),
+        )
+    [trend] = queries.get_usage_snapshots_trend(db)
+    assert [(point["captured_at"][11:13], point["pct_used"]) for point in trend["history"]] == [
+        ("16", 0.0), ("17", 3.0), ("20", 3.0), ("09", 5.0), ("10", 5.0),
+    ]

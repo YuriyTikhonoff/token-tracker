@@ -24,6 +24,11 @@ class TotalsByPeriod(BaseModel):
     all: Totals
 
 
+class UsagePoint(BaseModel):
+    captured_at: str
+    pct_used: float
+
+
 class UsageSnapshotTrend(BaseModel):
     scope: str
     pct_used: float
@@ -32,6 +37,8 @@ class UsageSnapshotTrend(BaseModel):
     resets_at: str | None = None
     rate_per_hour: float
     hours_to_limit: float | None = None
+    # pct_used over the current window, oldest first, for the fact-vs-plan chart.
+    history: list[UsagePoint] = []
 
 
 class CurrentSessionStats(BaseModel):
