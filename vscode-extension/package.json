@@ -1,0 +1,100 @@
+{
+  "name": "token-tracker-vscode",
+  "displayName": "Token Tracker",
+  "description": "Claude Code subscription limits against an even pace, and today's tokens and cost, in the status bar. Reads a local Token Tracker backend.",
+  "version": "0.1.0",
+  "publisher": "token-tracker",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuriyTikhonoff/token-tracker.git",
+    "directory": "vscode-extension"
+  },
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tokenTracker.openDashboard",
+        "title": "Token Tracker: Open Dashboard"
+      },
+      {
+        "command": "tokenTracker.refresh",
+        "title": "Token Tracker: Refresh Now"
+      },
+      {
+        "command": "tokenTracker.switchAccount",
+        "title": "Token Tracker: Switch Account"
+      },
+      {
+        "command": "tokenTracker.startBackend",
+        "title": "Token Tracker: Start Backend"
+      },
+      {
+        "command": "tokenTracker.showLog",
+        "title": "Token Tracker: Show Log"
+      }
+    ],
+    "configuration": {
+      "title": "Token Tracker",
+      "properties": {
+        "tokenTracker.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765",
+          "description": "Address of the Token Tracker backend (`token-tracker serve`)."
+        },
+        "tokenTracker.refreshSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "description": "How often to read the backend while this window is focused."
+        },
+        "tokenTracker.account": {
+          "type": "string",
+          "default": "all",
+          "description": "Account to show: an account id, or \"all\" for every account combined."
+        },
+        "tokenTracker.statusBar.showToday": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show today's tokens and cost as the first status bar item."
+        },
+        "tokenTracker.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the backend with `tokenTracker.cliPath` when it does not answer. Only for a backend on this machine."
+        },
+        "tokenTracker.cliPath": {
+          "type": "string",
+          "default": "token-tracker",
+          "description": "Path to the `token-tracker` executable, for example the one in your virtualenv."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "lint": "oxlint",
+    "test": "tsc -p . && node --test \"out/test/*.test.js\"",
+    "fixture": "node test/fixture-server.mjs",
+    "dev:host": "bash scripts/dev-host.sh",
+    "package": "tsc -p . && npx --yes @vscode/vsce@3.9.2 package --no-dependencies --skip-license --out token-tracker.vsix",
+    "install:vscode": "npm run package --silent && code --install-extension token-tracker.vsix --force"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2"
+  }
+}
