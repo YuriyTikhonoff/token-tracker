@@ -1,6 +1,6 @@
 # Backups
 
-Status: **proposal**. Nothing described here is implemented yet.
+Status: **proposal**. Nothing described here is implemented yet. Ukrainian: [backups.uk.md](backups.uk.md).
 
 How Token Tracker protects its database, and how it checks on every run that the protection is
 current.

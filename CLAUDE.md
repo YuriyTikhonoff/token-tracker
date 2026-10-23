@@ -23,6 +23,7 @@ names from the monorepo around it, no personal data in code, docs or tests.
 - Do not touch a real `token_tracker.db` or `~/.claude/settings.json` from a test or experiment;
   use `TOKEN_TRACKER_HOME` and `CLAUDE_CONFIG_DIR` pointed at a temporary directory.
 - Screenshots in `docs/` must come from made-up data.
+- Documents come in two languages: the English file is `<name>.md` and the Ukrainian copy is `<name>.uk.md` (`SETUP.md` and `SETUP.uk.md`). Change both in the same commit.
 
 ## Publishing
 
