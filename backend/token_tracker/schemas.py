@@ -174,6 +174,24 @@ class DashboardData(BaseModel):
     unknown_models: list[str] = []
 
 
+class AccountLabel(BaseModel):
+    account_uuid: str
+    label: str
+    is_default: bool
+
+
+class LimitsData(BaseModel):
+    """The small payload of GET /api/limits: what a client that polls often
+    needs, none of the heavy parts of DashboardData."""
+
+    usage_snapshots: list[UsageSnapshotTrend]
+    today: Totals
+    week: Totals
+    accounts: list[AccountLabel] = []
+    selected_account: str | None = None
+    timezone: str = "UTC"
+
+
 class RefreshResult(BaseModel):
     new_prompt_count: int
     usage_snapshot_count: int | None = None

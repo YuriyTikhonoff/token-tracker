@@ -49,7 +49,13 @@ def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tok
 
 
 def get_totals(connection, pricing, since_utc_iso=None, account=None):
-    query = "SELECT model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens FROM usage"
+    # Summed per model in SQL: the price is linear in the token counts, so the
+    # cost of a model's sums is the sum of its rows' costs, without a Python
+    # loop over every row (hundreds of thousands, for all time).
+    query = (
+        "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), "
+        "SUM(cache_read_tokens) FROM usage"
+    )
     conditions, params = [], []
     if since_utc_iso:
         conditions.append("timestamp >= ?")
@@ -59,6 +65,7 @@ def get_totals(connection, pricing, since_utc_iso=None, account=None):
         params.append(account)
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
+    query += " GROUP BY model"
     rows = connection.execute(query, params).fetchall()
 
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "cost": 0.0}
@@ -91,6 +98,25 @@ def get_totals_by_period(connection, pricing, account=None):
         "today": get_totals(connection, pricing, start_of_today_utc, account),
         "month": get_totals(connection, pricing, start_of_month_utc, account),
         "all": get_totals(connection, pricing, account=account),
+    }
+
+
+def get_today_and_week_totals(connection, pricing, account=None):
+    """Totals for the current local day and the current local week (Monday
+    start, the same week get_weekly_usage ends with). Only the rows since
+    Monday are read, unlike get_totals_by_period, which also sums the month and
+    all time -- this is what a client that polls often (the VS Code status bar)
+    needs."""
+    now_local = datetime.now(LOCAL_TZ)
+    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_week_local = start_of_today_local - timedelta(days=start_of_today_local.weekday())
+
+    def utc_iso(moment):
+        return moment.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+
+    return {
+        "today": get_totals(connection, pricing, utc_iso(start_of_today_local), account),
+        "week": get_totals(connection, pricing, utc_iso(start_of_week_local), account),
     }
 
 
@@ -249,7 +275,9 @@ def get_monthly_usage(connection, pricing, months=8, account=None):
 
 
 def _parse_utc_iso(iso_timestamp):
-    return datetime.strptime(iso_timestamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=ZoneInfo("UTC"))
+    # fromisoformat, not strptime: the limit trend parses every stored snapshot
+    # timestamp (tens of thousands) on each call, and strptime was most of that time.
+    return datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
 
 
 def _parse_usage_timestamp(iso_timestamp):
@@ -395,7 +423,7 @@ def _is_weekly_scope(scope):
     return "week" in scope.lower()
 
 
-def get_usage_snapshots_trend(connection, window_hours=6, account=None):
+def get_usage_snapshots_trend(connection, window_hours=6, account=None, with_history=True):
     """Latest subscription-usage snapshot per scope (session, weekly, ...),
     plus a projected hours-to-100% based on the pct_used rate of change over
     the trailing window. Requires usage_snapshot.py to have run at least
@@ -414,7 +442,10 @@ def get_usage_snapshots_trend(connection, window_hours=6, account=None):
     `captured_pct_used` (the actual last-reported value, frozen at
     `captured_at`) -- see get_codex_rate_limits_trend for the Codex twin of
     this function, which needed the same split since it lacks an
-    independent periodic poller and so drifts more visibly."""
+    independent periodic poller and so drifts more visibly.
+
+    `with_history=False` leaves each entry's `history` empty, for callers that
+    only want the current numbers."""
     account_sql, account_params = _account_clause(account, joiner="WHERE")
     try:
         rows = connection.execute(
@@ -460,7 +491,7 @@ def get_usage_snapshots_trend(connection, window_hours=6, account=None):
             "resets_at": resets_at,
             "rate_per_hour": rate_per_hour,
             "hours_to_limit": hours_to_limit,
-            "history": _cycle_history(snapshots),
+            "history": _cycle_history(snapshots) if with_history else [],
         })
 
     return sorted(results, key=lambda entry: entry["scope"])
@@ -770,6 +801,21 @@ def get_unknown_models(connection, pricing):
     except sqlite3.OperationalError:
         return []
     return sorted(model for model in models if model and model not in pricing)
+
+
+def get_account_labels(connection):
+    """Every known account's id and label, without the totals
+    get_accounts_summary computes (those read all of the usage table)."""
+    try:
+        rows = connection.execute(
+            "SELECT account_uuid, label, is_default FROM accounts ORDER BY is_default DESC, label"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        {"account_uuid": account_uuid, "label": label, "is_default": bool(is_default)}
+        for account_uuid, label, is_default in rows
+    ]
 
 
 def get_accounts_summary(connection, pricing):

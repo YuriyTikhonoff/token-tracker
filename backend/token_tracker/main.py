@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import queries, schema
-from .routes import accounts, data, refresh, widget
+from .routes import accounts, data, limits, refresh, widget
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -47,6 +47,7 @@ app.add_middleware(
 
 app.include_router(accounts.router)
 app.include_router(data.router)
+app.include_router(limits.router)
 app.include_router(refresh.router)
 app.include_router(widget.router)
 

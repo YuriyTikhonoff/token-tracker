@@ -98,3 +98,19 @@ def test_a_first_run_without_a_database_answers_with_zeros_not_an_error():
     payload = response.json()
     assert payload["totals"]["total_tokens"] == 0
     assert payload["accounts"] == [] and payload["prompt_log"] == []
+
+
+def test_limits_is_a_small_payload_with_the_accounts_but_no_heavy_parts(client):
+    payload = client.get("/api/limits").json()
+    assert set(payload) == {"usage_snapshots", "today", "week", "accounts", "selected_account", "timezone"}
+    assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}
+    assert all(set(a) == {"account_uuid", "label", "is_default"} for a in payload["accounts"])
+    assert payload["selected_account"] is None
+    assert payload["timezone"] == "UTC"
+
+
+def test_limits_can_be_filtered_to_one_account(client):
+    payload = client.get("/api/limits", params={"account": "me"}).json()
+    assert payload["selected_account"] == "me"
+    assert len(payload["accounts"]) == 2  # the switcher still lists everyone
+    assert client.get("/api/limits", params={"account": "all"}).json()["selected_account"] is None

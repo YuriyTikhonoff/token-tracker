@@ -130,3 +130,38 @@ def test_limit_history_covers_the_current_window_and_drops_flat_runs(db):
     assert [(point["captured_at"][11:13], point["pct_used"]) for point in trend["history"]] == [
         ("16", 0.0), ("17", 3.0), ("20", 3.0), ("09", 5.0), ("10", 5.0),
     ]
+
+
+def test_today_and_week_totals_leave_out_older_usage(db, pricing):
+    now = datetime.now(UTC)
+    _usage(db, "now", _iso(now), model="m", inp=1_000_000, out=0, cc=0, cr=0)
+    _usage(db, "old", _iso(now - timedelta(days=8)), model="m", inp=5_000_000, out=0, cc=0, cr=0)
+    _usage(db, "other", _iso(now), model="m", inp=2_000_000, out=0, cc=0, cr=0, account="guest")
+    totals = queries.get_today_and_week_totals(db, pricing)
+    assert totals["today"]["input_tokens"] == 3_000_000  # both accounts, nothing from 8 days ago
+    assert totals["week"]["input_tokens"] == 3_000_000
+    assert totals["week"]["cost"] == 3  # $1/M for "m"
+    only_guest = queries.get_today_and_week_totals(db, pricing, account="guest")
+    assert only_guest["today"]["input_tokens"] == 2_000_000
+
+
+def test_snapshot_trend_can_leave_out_the_history(db):
+    for hour, pct in ((16, 0.0), (17, 3.0), (18, 5.0)):
+        db.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at) VALUES (?,?,?,?)",
+            (f"2026-10-13T{hour}:00:00Z", "Current session", pct, "2026-10-13T21:00:00Z"),
+        )
+    [full] = queries.get_usage_snapshots_trend(db)
+    [light] = queries.get_usage_snapshots_trend(db, with_history=False)
+    assert len(full["history"]) == 3
+    assert light["history"] == []
+    assert {k: v for k, v in light.items() if k != "history"} == {k: v for k, v in full.items() if k != "history"}
+
+
+def test_account_labels_carry_no_totals(db):
+    db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('me', 'Me', 'me@x.c', 1)")
+    db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('g', 'Gus', NULL, 0)")
+    assert queries.get_account_labels(db) == [
+        {"account_uuid": "me", "label": "Me", "is_default": True},
+        {"account_uuid": "g", "label": "Gus", "is_default": False},
+    ]
