@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -39,3 +40,57 @@ def test_usage_output_lines_become_snapshots():
     assert [(s["scope"], s["pct_used"]) for s in parsed] == [("Current session", 11.0), ("Current week (all models)", 25.0)]
     assert parsed[0]["resets_at"] == "2026-10-14T13:49:00Z"
     assert parsed[1]["resets_at"] is None
+
+
+def test_only_one_background_snapshot_runs_at_a_time(monkeypatch, tmp_path):
+    release, started = threading.Event(), threading.Event()
+
+    def slow_run(db_path):
+        started.set()
+        release.wait(5)
+
+    monkeypatch.setattr(snapshot, "run", slow_run)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+    assert started.wait(5)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "running"  # a burst of refreshes starts no second one
+    release.set()
+    for _ in range(100):  # the worker frees the lock a moment after run() returns
+        if snapshot.start_in_background(tmp_path / "x.db") == "started":
+            break
+        threading.Event().wait(0.05)
+    else:
+        raise AssertionError("the lock was never released")
+
+
+def test_a_failed_background_snapshot_is_remembered_and_frees_the_lock(monkeypatch, tmp_path):
+    done = threading.Event()
+
+    def failing_run(db_path):
+        try:
+            raise TimeoutError("took too long")
+        finally:
+            done.set()
+
+    monkeypatch.setattr(snapshot, "run", failing_run)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+    assert done.wait(5)
+    for _ in range(100):
+        if "took too long" in (snapshot.last_background_error() or ""):
+            break
+        threading.Event().wait(0.05)
+    assert "TimeoutError: took too long" == snapshot.last_background_error()
+
+    monkeypatch.setattr(snapshot, "run", lambda db_path: None)
+    for _ in range(100):
+        if snapshot.start_in_background(tmp_path / "x.db") == "started":
+            break
+        threading.Event().wait(0.05)
+    for _ in range(100):  # a later success clears the remembered failure
+        if snapshot.last_background_error() is None:
+            break
+        threading.Event().wait(0.05)
+    assert snapshot.last_background_error() is None
+
+
+def test_the_cli_is_given_time_for_a_slow_usage_report():
+    assert snapshot.USAGE_TIMEOUT_SECONDS >= 120

@@ -10,6 +10,8 @@ periodically (e.g. from watch.sh) so a trend accumulates over time.
 import argparse
 import re
 import subprocess
+import sys
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -19,6 +21,10 @@ from . import accounts, queries, schema
 DEFAULT_DB_PATH = queries.DEFAULT_DB_PATH
 UTC_TZ = ZoneInfo("UTC")
 STALE_RESET_WRAP_DAYS = 180
+# `/usage` also analyses the local transcripts (what contributes to the limits),
+# so it slows down as they grow: about 48 s with a week of heavy use, and it
+# kept timing out at the old 30 s.
+USAGE_TIMEOUT_SECONDS = 150
 
 
 # e.g. "Current session: 11% used · resets Jul 8 at 4:49pm (Europe/Kiev)"
@@ -97,10 +103,42 @@ def capture_usage_output():
         ["claude", "-p", "/usage"],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=USAGE_TIMEOUT_SECONDS,
         check=True,
     )
     return result.stdout
+
+
+# A snapshot takes up to a minute, so the dashboard's refresh starts one in the
+# background and does not wait. One at a time: a burst of refreshes (every
+# window focus asks for one) must not pile up slow `claude` processes.
+_background = threading.Lock()
+_last_error = None
+
+
+def last_background_error():
+    """What went wrong in the latest background snapshot, or None when it worked."""
+    return _last_error
+
+
+def start_in_background(db_path):
+    """Start a snapshot unless one is already running. Returns "started" or "running"."""
+    if not _background.acquire(blocking=False):
+        return "running"
+
+    def work():
+        global _last_error
+        try:
+            run(db_path)
+            _last_error = None
+        except Exception as error:  # a failed snapshot must not take the server down
+            _last_error = f"{type(error).__name__}: {error}"
+            print(f"usage snapshot failed: {_last_error}", file=sys.stderr)
+        finally:
+            _background.release()
+
+    threading.Thread(target=work, name="usage-snapshot", daemon=True).start()
+    return "started"
 
 
 def run(db_path):

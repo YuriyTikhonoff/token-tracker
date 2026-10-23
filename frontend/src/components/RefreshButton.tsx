@@ -26,9 +26,11 @@ export function RefreshButton() {
       result.errors.length > 0
         ? `Refresh completed with errors: ${result.errors.join("; ")}`
         : `Refreshed: ${result.new_prompt_count} new prompt(s) ingested` +
-          (result.usage_snapshot_count != null
-            ? ", usage snapshot updated"
-            : "") +
+          (result.usage_snapshot === "started"
+            ? ", limits are being read (about a minute)"
+            : result.usage_snapshot === "running"
+              ? ", limits are still being read"
+              : "") +
           (result.codex_usage_check_triggered
             ? ", Codex rate limits re-checked."
             : ".");

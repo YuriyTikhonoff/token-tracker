@@ -177,7 +177,8 @@ export interface DashboardData {
 
 export interface RefreshResult {
   new_prompt_count: number;
-  usage_snapshot_count: number | null;
+  // "started": the limits are being read in the background; "running": a reading already was.
+  usage_snapshot: "started" | "running" | null;
   codex_new_usage_count: number | null;
   codex_usage_check_triggered: boolean;
   errors: string[];

@@ -206,7 +206,8 @@ class OverviewData(BaseModel):
 
 class RefreshResult(BaseModel):
     new_prompt_count: int
-    usage_snapshot_count: int | None = None
+    # "started": a reading of the limits was started in the background; "running": one already was.
+    usage_snapshot: str | None = None
     codex_new_usage_count: int | None = None
     codex_usage_check_triggered: bool = False
     errors: list[str]
