@@ -189,6 +189,36 @@ def test_snapshot_trend_can_leave_out_the_history(db):
     assert {k: v for k, v in light.items() if k != "history"} == {k: v for k, v in full.items() if k != "history"}
 
 
+def test_a_closed_window_keeps_its_last_reading_and_projects_nothing(db, pricing):
+    now = datetime.now(UTC)
+    closed = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for minutes_ago, pct in ((260, 40.0), (250, 61.0)):
+        db.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at) VALUES (?,?,?,?)",
+            ((now - timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ"), "Current session", pct, closed),
+        )
+    [trend] = queries.get_usage_snapshots_trend(db)
+    # without the fix this climbs to 100% and says the limit is hit now
+    assert trend["stale"] is True
+    assert trend["pct_used"] == 61.0 == trend["captured_pct_used"]
+    assert trend["rate_per_hour"] == 0.0 and trend["hours_to_limit"] is None
+    assert queries.get_current_session_stats(db, pricing) is None
+
+
+def test_an_open_window_is_not_stale_and_still_projects(db, pricing):
+    now = datetime.now(UTC)
+    opens = (now + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for minutes_ago, pct in ((30, 10.0), (0, 20.0)):
+        db.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at) VALUES (?,?,?,?)",
+            ((now - timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ"), "Current session", pct, opens),
+        )
+    [trend] = queries.get_usage_snapshots_trend(db)
+    assert trend["stale"] is False
+    assert trend["rate_per_hour"] > 0 and trend["hours_to_limit"] is not None
+    assert queries.get_current_session_stats(db, pricing) is not None
+
+
 def test_account_labels_carry_no_totals(db):
     db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('me', 'Me', 'me@x.c', 1)")
     db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('g', 'Gus', NULL, 0)")

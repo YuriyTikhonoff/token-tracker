@@ -31,6 +31,9 @@ class UsagePoint(BaseModel):
 
 class UsageSnapshotTrend(BaseModel):
     scope: str
+    # The window of the last reading has closed: pct_used is that reading as it
+    # was, with no projection, and a fresh snapshot is needed.
+    stale: bool = False
     pct_used: float
     captured_pct_used: float
     captured_at: str

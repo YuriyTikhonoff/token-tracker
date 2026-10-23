@@ -1,6 +1,7 @@
 import type { UsageSnapshotTrend } from "../api/types";
 import {
   SEVERITY_COLORS,
+  ageLabel,
   formatSignedDuration,
   limitSeverity,
   pacePercent,
@@ -49,6 +50,11 @@ export function LimitRow({ snapshot }: LimitRowProps) {
                 {projection.resetLine}
               </div>
             )}
+            {snapshot.stale && (
+              <div className="mt-0.5 text-[0.75rem] text-[#d9a441]">
+                no fresh reading: {snapshot.captured_pct_used.toFixed(0)}% was the last, {ageLabel(snapshot.captured_at)}
+              </div>
+            )}
             {projection.exhaustionLine && (
               <div
                 className="mt-0.5 text-[0.75rem]"
@@ -75,7 +81,7 @@ export function LimitRow({ snapshot }: LimitRowProps) {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className={`flex items-center gap-1.5 ${snapshot.stale ? "opacity-45" : ""}`}>
         <div className="flex h-2 flex-1 overflow-hidden rounded-[3px] bg-[#1d2129]">
           <div
             className="h-full"

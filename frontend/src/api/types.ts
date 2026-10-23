@@ -53,6 +53,9 @@ export interface UsagePoint {
 
 export interface UsageSnapshotTrend {
   scope: string;
+  // The window of the last reading has closed: pct_used is that reading as it
+  // was, with no projection.
+  stale: boolean;
   pct_used: number;
   captured_pct_used: number;
   captured_at: string;

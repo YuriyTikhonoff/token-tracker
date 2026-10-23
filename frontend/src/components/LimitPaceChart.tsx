@@ -42,7 +42,8 @@ function linePath(points: Point[], x: (ms: number) => number, y: (pct: number) =
 // or the reset.
 export function LimitPaceChart({ snapshot }: LimitPaceChartProps) {
   const clipId = useId();
-  if (!snapshot.resets_at) return null;
+  // A closed window has no current line to draw; the limit row says it needs a fresh reading.
+  if (!snapshot.resets_at || snapshot.stale) return null;
 
   const windowHours = limitWindowHours(snapshot.scope);
   const end = new Date(snapshot.resets_at).getTime();

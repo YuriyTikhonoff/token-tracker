@@ -486,8 +486,15 @@ def get_usage_snapshots_trend(connection, window_hours=6, account=None, with_his
                 (snapshot["resets_at"] for snapshot in reversed(snapshots) if snapshot["resets_at"] is not None),
                 None,
             )
+        # A window that has closed says nothing about the next one: the last
+        # reading is kept as it was, with no projection (the projection would
+        # keep climbing to 100% and claim the limit is about to be hit).
+        stale = resets_at is not None and resets_at <= now_iso
+        if stale:
+            pct_used_now, rate_per_hour, hours_to_limit = latest["pct_used"], 0.0, None
         results.append({
             "scope": scope,
+            "stale": stale,
             "pct_used": pct_used_now,
             "captured_pct_used": latest["pct_used"],
             "captured_at": latest["captured_at"],
@@ -506,7 +513,8 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
     resets_at, sums actual token usage logged within that window, and
     extrapolates: at the current token burn rate, when would the session's
     estimated token capacity (inferred from tokens-used / pct-used) be
-    exhausted. Returns None if no snapshot with a resets_at exists yet."""
+    exhausted. Returns None if no snapshot with a resets_at exists yet, or when
+    the latest one has already closed."""
     account_sql, account_params = _account_clause(account)
     try:
         rows = connection.execute(
@@ -528,6 +536,8 @@ def get_current_session_stats(connection, pricing, scope="Current session", sess
     latest, _rate_per_hour, pct_used = _extrapolate_pct_used(snapshots, window_hours, now_iso)
     resets_at = latest["resets_at"]
     resets_dt = _parse_utc_iso(resets_at)
+    if resets_dt <= now:
+        return None  # the window has closed: its numbers say nothing about the current one
     session_started_dt = resets_dt - timedelta(hours=session_hours)
     session_started_at = session_started_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
