@@ -71,9 +71,14 @@ chart already lives there (`LimitPaceChart`), so the extension does not reimplem
 
 ## Architecture
 
-The extension is a thin client of the running backend. It reads `GET /api/data` and calls
+The extension is a thin client of the running backend. It reads `GET /api/limits` and calls
 `POST /api/refresh`; it never reads `~/.claude` or the SQLite database itself. Pricing, ingest,
 projections and account handling stay in one place, the backend.
+
+`/api/limits` exists for this: `/api/data` takes 5 to 11 seconds to build on a grown database (it sums
+the whole usage table several ways and builds the prompt log), which is too heavy for a client that
+polls every minute. `/api/limits` returns only the limit snapshots, today's and this week's totals and
+the account list, and answers in under half a second.
 
 ```
 VS Code extension ──HTTP──► token-tracker serve (127.0.0.1:8765) ──► SQLite
@@ -81,15 +86,17 @@ VS Code extension ──HTTP──► token-tracker serve (127.0.0.1:8765) ─�
        └── starts it if not running ──┘   (optional, setting)
 ```
 
-Fields used from `/api/data`:
+Fields used from `/api/limits`:
 
 | Need | Field |
 | --- | --- |
 | Limits | `usage_snapshots[]`: `scope`, `pct_used`, `resets_at`, `rate_per_hour`, `hours_to_limit` |
-| Today / this week | `totals_by_period.today`, `weekly_usage[-1]` (`total_tokens`, `cost`) |
-| This workspace | `by_project[]` (`project` is Claude Code's folder name for the workspace path) |
-| Accounts | `accounts[]`, query parameter `?account=<id>` (`all` or none = combined) |
+| Today / this week | `today`, `week` (`total_tokens`, `cost`; the week starts on Monday, as in the dashboard) |
+| Accounts | `accounts[]` (`account_uuid`, `label`, `is_default`), query parameter `?account=<id>` (`all` or none = combined) |
 | Time zone | `timezone` |
+
+The sidebar view (phase 5) additionally needs `by_project`, which only `/api/data` has; it should
+get its own light endpoint rather than polling `/api/data`.
 
 Scopes are matched by name the same way the dashboard does: `week` in the name is weekly (7 days),
 anything else is the 5-hour session. Model-specific weekly scopes (for example "Current week
@@ -103,7 +110,7 @@ token-tracker/vscode-extension/
   tsconfig.json
   src/
     extension.ts        # activate/deactivate, wiring
-    client.ts           # fetch /api/data and /api/refresh, timeouts, offline state
+    client.ts           # fetch /api/limits and /api/refresh, timeouts, offline state
     backend.ts          # start `token-tracker serve` as a child process when allowed
     pace.ts             # pure: plan %, diff, margin, severity, arrow, formatting
     statusBar.ts        # the three items and the tooltip
@@ -134,7 +141,7 @@ Each phase ends in something usable and is its own commit (or a few).
   status bar backgrounds (1.53+), so anything recent.
 - Add it to the root `package.json` `workspaces`, give it `build`, `typecheck` and `lint`
   scripts so `npx nx run-many -t typecheck` and `-t lint` cover it.
-- `client.ts`: `getData(account)` with a 5 s timeout and `refresh()`. Settings:
+- `client.ts`: `fetchUsage(account)` against `/api/limits` with a timeout, and `requestRefresh()`. Settings:
   `tokenTracker.url` (default `http://127.0.0.1:8765`), `tokenTracker.refreshSeconds` (default
   60), `tokenTracker.account` (default `all`).
 - Poll on an interval; also fetch when the window regains focus. Skip polling while the window
@@ -216,7 +223,7 @@ and dark.
 
 - `pace.ts`: unit tests (Phase 2).
 - Status bar and sidebar: a fixture server (a tiny Node script in `test/`) that serves canned
-  `/api/data` payloads for each state, so the UI can be checked without a real database. Never
+  `/api/limits` payloads for each state, so the UI can be checked without a real database. Never
   point tests at a real `token_tracker.db` or `~/.claude`.
 - Manual pass before each release: light and dark theme, narrow window, backend stopped and
   restarted, account switch.

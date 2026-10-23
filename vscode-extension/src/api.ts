@@ -1,5 +1,6 @@
-// The slice of the backend's GET /api/data this extension reads. Field names
-// are the backend's (schemas.py); the rest of the payload is ignored.
+// The backend's GET /api/limits (LimitsData in schemas.py): the small payload
+// meant for clients that poll often. /api/data holds the same numbers but takes
+// several seconds to build.
 
 export interface Totals {
   total_tokens: number;
@@ -22,8 +23,8 @@ export interface AccountSummary {
 
 export interface UsageData {
   usage_snapshots: LimitSnapshot[];
-  totals_by_period: { today: Totals };
-  weekly_usage: Totals[];
+  today: Totals;
+  week: Totals;
   accounts: AccountSummary[];
   timezone: string;
 }

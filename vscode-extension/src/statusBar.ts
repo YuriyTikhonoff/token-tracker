@@ -57,8 +57,7 @@ function resetLines(paces: LimitPace[], timeZone: string): string {
 }
 
 function tooltip(data: UsageData, paces: LimitPace[]): vscode.MarkdownString {
-  const today = data.totals_by_period.today;
-  const week = data.weekly_usage[data.weekly_usage.length - 1];
+  const { today, week } = data;
   const markdown = new vscode.MarkdownString(undefined, true);
   markdown.isTrusted = { enabledCommands: COMMANDS };
   const parts = [
@@ -66,7 +65,7 @@ function tooltip(data: UsageData, paces: LimitPace[]): vscode.MarkdownString {
     paces.length > 0 ? limitRows(paces) : "_No open limit window._",
     paces.length > 0 ? resetLines(paces, data.timezone) : "",
     `Today ${fmtTokens(today.total_tokens)} · ${fmtCost(today.cost)}` +
-      (week ? `  \nThis week ${fmtTokens(week.total_tokens)} · ${fmtCost(week.cost)}` : ""),
+      `  \nThis week ${fmtTokens(week.total_tokens)} · ${fmtCost(week.cost)}`,
     "[Open dashboard](command:tokenTracker.openDashboard) · [Refresh](command:tokenTracker.refresh)" +
       (data.accounts.length > 1 ? " · [Switch account](command:tokenTracker.switchAccount)" : ""),
   ];
@@ -130,7 +129,7 @@ export class StatusBar implements vscode.Disposable {
 
     const settings = readSettings();
     if (settings.showToday) {
-      this.today.text = `$(history) ${fmtTokens(data.totals_by_period.today.total_tokens)} · ${fmtCost(data.totals_by_period.today.cost)}`;
+      this.today.text = `$(history) ${fmtTokens(data.today.total_tokens)} · ${fmtCost(data.today.cost)}`;
       this.today.command = "tokenTracker.openDashboard";
       this.today.tooltip = hover;
       applySeverity(this.today, null);

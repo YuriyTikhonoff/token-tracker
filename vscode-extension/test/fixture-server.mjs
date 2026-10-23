@@ -37,8 +37,8 @@ function payload() {
       snapshot("Current week (all models)", chosen.week),
       snapshot("Current week (Fable)", [84, 5, null]),
     ],
-    totals_by_period: { today: { total_tokens: 106_600_000, cost: 36.77 } },
-    weekly_usage: [{ total_tokens: 645_700_000, cost: 222.65 }],
+    today: { total_tokens: 106_600_000, cost: 36.77 },
+    week: { total_tokens: 645_700_000, cost: 222.65 },
     accounts: [
       { account_uuid: "me", label: "personal", is_default: true },
       { account_uuid: "guest", label: "guest", is_default: false },
@@ -49,7 +49,7 @@ function payload() {
 
 http
   .createServer((request, response) => {
-    if (request.url?.startsWith("/api/data")) {
+    if (request.url?.startsWith("/api/limits")) {
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify(payload()));
     } else if (request.url?.startsWith("/scenario/")) {
