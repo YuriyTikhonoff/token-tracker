@@ -1,5 +1,5 @@
 import type { CurrentSessionStats, UsageSnapshotTrend } from "../api/types";
-import { LimitPaceChart } from "./LimitPaceChart";
+import { visibleSnapshots } from "../lib/format";
 import { LimitRow } from "./LimitRow";
 import { SessionStats } from "./SessionStats";
 
@@ -9,10 +9,8 @@ interface LimitsWidgetProps {
 }
 
 export function LimitsWidget({ snapshots, sessionStats }: LimitsWidgetProps) {
-  const visibleSnapshots = snapshots.filter(
-    (snapshot) => !snapshot.scope.toLowerCase().includes("fable"),
-  );
-  if (visibleSnapshots.length === 0) return null;
+  const visible = visibleSnapshots(snapshots);
+  if (visible.length === 0) return null;
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
@@ -23,13 +21,8 @@ export function LimitsWidget({ snapshots, sessionStats }: LimitsWidgetProps) {
         </div>
       </div>
       <div>
-        {visibleSnapshots.map((snapshot) => (
+        {visible.map((snapshot) => (
           <LimitRow key={snapshot.scope} snapshot={snapshot} />
-        ))}
-      </div>
-      <div className="mt-5 flex flex-col gap-6">
-        {visibleSnapshots.map((snapshot) => (
-          <LimitPaceChart key={snapshot.scope} snapshot={snapshot} />
         ))}
       </div>
       {sessionStats && <SessionStats stats={sessionStats} />}

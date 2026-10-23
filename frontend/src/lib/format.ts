@@ -177,6 +177,11 @@ function isWeeklyScope(scope: string): boolean {
 // % of the window's linear allowance elapsed so far, e.g. 1h into a 5h
 // session window is 20 -- the "on-pace" reference point for LimitRow's bar.
 // Null when there's no resets_at to anchor the window against.
+// The scopes the dashboard shows; the limit rows and the pace charts use the same list.
+export function visibleSnapshots(snapshots: UsageSnapshotTrend[]): UsageSnapshotTrend[] {
+  return snapshots.filter((snapshot) => !snapshot.scope.toLowerCase().includes("fable"));
+}
+
 export function limitWindowHours(scope: string): number {
   return isWeeklyScope(scope) ? WEEKLY_WINDOW_HOURS : SESSION_WINDOW_HOURS;
 }

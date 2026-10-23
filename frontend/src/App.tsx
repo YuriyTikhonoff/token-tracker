@@ -9,6 +9,7 @@ import { CodexDailyTokensChart } from "./components/CodexDailyTokensChart";
 import { CodexLimitsWidget } from "./components/CodexLimitsWidget";
 import { CostBreakdown } from "./components/CostBreakdown";
 import { DailyTokensChart } from "./components/DailyTokensChart";
+import { LimitPaceCharts } from "./components/LimitPaceCharts";
 import { LimitsWidget } from "./components/LimitsWidget";
 import { LoadingBar } from "./components/LoadingBar";
 import { MonthlyTokensChart } from "./components/MonthlyTokensChart";
@@ -73,6 +74,7 @@ function App() {
             />
             <DailyTokensChart days={overview.daily_usage} />
           </div>
+          <LimitPaceCharts snapshots={overview.usage_snapshots} />
         </>
       )}
       {!data && (

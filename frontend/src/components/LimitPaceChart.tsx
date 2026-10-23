@@ -3,6 +3,7 @@ import { useId } from "react";
 import type { UsageSnapshotTrend } from "../api/types";
 import {
   SEVERITY_COLORS,
+  formatSignedDuration,
   fmtWeekday,
   fmtWeekdayTime,
   limitWindowHours,
@@ -24,7 +25,6 @@ const ACTUAL_COLOR = "#5b8def";
 const PLAN_COLOR = "#8a8f98";
 const GRID_COLOR = "#1d2129";
 const AXIS_TEXT_COLOR = "#5c6068";
-const RESERVE_TEXT_COLOR = "#c7cbd4";
 
 const Y_TICKS = [0, 25, 50, 75, 100];
 
@@ -62,7 +62,9 @@ export function LimitPaceChart({ snapshot }: LimitPaceChartProps) {
   ];
   const pctNow = Math.min(100, snapshot.pct_used);
   const planNow = planAt(now);
-  const delta = pctNow - planNow;
+  // The gap to the plan in time, the way the limit rows show their margin:
+  // plus (green) is spare time under the plan, minus (yellow) is time over it.
+  const gapHours = ((planNow - pctNow) / 100) * windowHours;
   const actualPath = linePath(actual, x, y);
   const gapPath = `${actualPath}L${x(now)} ${y(planNow)}L${x(start)} ${y(0)}Z`;
 
@@ -82,11 +84,13 @@ export function LimitPaceChart({ snapshot }: LimitPaceChartProps) {
     isWeekly ? (index === 0 ? fmtWeekdayTime(new Date(ms)) : fmtWeekday(new Date(ms))) : localTime(new Date(ms));
 
   const nowLabelOnLeft = x(now) > WIDTH - 120;
-  const deltaLabel = `${delta >= 0 ? "+" : "−"}${Math.abs(Math.round(delta))} pp`;
+  const gapColor = gapHours >= 0 ? SEVERITY_COLORS.ok : OVER_PACE_COLOR;
+  const gapX = x(now) + (nowLabelOnLeft ? -8 : 8);
+  const gapY = Math.max(PAD.top + 10, (y(pctNow) + y(planNow)) / 2 + 2);
 
   return (
-    <div>
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-4 text-[0.8rem]">
+    <section className="rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 text-[0.85rem]">
         <span className="text-[#c7cbd4]">{snapshot.scope}: fact vs plan</span>
         <span className="text-[#5c6068]">plan: even pace to the reset</span>
       </div>
@@ -175,14 +179,23 @@ export function LimitPaceChart({ snapshot }: LimitPaceChartProps) {
         <circle cx={x(now)} cy={y(planNow)} r={3.4} fill="#161a23" stroke={PLAN_COLOR} strokeWidth={2} />
         <circle cx={x(now)} cy={y(pctNow)} r={4.2} fill={ACTUAL_COLOR} stroke="#161a23" strokeWidth={2} />
         <text
-          x={x(now) + (nowLabelOnLeft ? -8 : 8)}
-          y={Math.max(PAD.top + 10, (y(pctNow) + y(planNow)) / 2 + 4)}
+          x={gapX}
+          y={gapY}
           textAnchor={nowLabelOnLeft ? "end" : "start"}
-          fontSize={11.5}
-          fontWeight={600}
-          fill={delta > 0 ? OVER_PACE_COLOR : RESERVE_TEXT_COLOR}
+          fontSize={13}
+          fontWeight={700}
+          fill={gapColor}
         >
-          {deltaLabel}
+          {formatSignedDuration(gapHours)}
+        </text>
+        <text
+          x={gapX}
+          y={gapY + 13}
+          textAnchor={nowLabelOnLeft ? "end" : "start"}
+          fontSize={10}
+          fill={AXIS_TEXT_COLOR}
+        >
+          {gapHours >= 0 ? "under plan" : "over plan"}
         </text>
       </svg>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[0.72rem] text-[#5c6068]">
@@ -192,7 +205,7 @@ export function LimitPaceChart({ snapshot }: LimitPaceChartProps) {
         <LegendSwatch color={UNDER_PACE_COLOR} label="unused plan" />
         <LegendSwatch color={OVER_PACE_COLOR} label="over plan" />
       </div>
-    </div>
+    </section>
   );
 }
 
