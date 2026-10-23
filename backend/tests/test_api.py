@@ -159,7 +159,8 @@ def test_refresh_starts_the_limit_reading_in_the_background_and_reports_an_earli
 
     monkeypatch.setattr("token_tracker.ingest.run", lambda *args: {"new_prompt_count": 2})
     monkeypatch.setattr("token_tracker.codex_ingest.run", lambda *args: {"new_usage_count": 0})
-    monkeypatch.setattr(usage_snapshot, "start_in_background", lambda db: "started")
+    monkeypatch.setattr(usage_snapshot, "start_in_background", lambda db, force=False: "started")
+    monkeypatch.setattr(usage_snapshot, "needs_fresh_reading", lambda db: False)
     monkeypatch.setattr(usage_snapshot, "last_background_error", lambda: None)
     payload = client.post("/api/refresh").json()
     assert payload["usage_snapshot"] == "started" and payload["new_prompt_count"] == 2 and payload["errors"] == []

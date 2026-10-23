@@ -2,7 +2,19 @@ import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from token_tracker import usage_snapshot as snapshot
+
+
+@pytest.fixture(autouse=True)
+def fresh_background_state():
+    snapshot._last_ok_started = None
+    snapshot._last_error = None
+    yield
+    snapshot._last_ok_started = None
+    snapshot._last_error = None
+
 
 KYIV = ZoneInfo("Europe/Kyiv")
 NOW = datetime(2026, 10, 13, 12, 0, tzinfo=KYIV)
@@ -55,7 +67,7 @@ def test_only_one_background_snapshot_runs_at_a_time(monkeypatch, tmp_path):
     assert snapshot.start_in_background(tmp_path / "x.db") == "running"  # a burst of refreshes starts no second one
     release.set()
     for _ in range(100):  # the worker frees the lock a moment after run() returns
-        if snapshot.start_in_background(tmp_path / "x.db") == "started":
+        if snapshot.start_in_background(tmp_path / "x.db", force=True) == "started":
             break
         threading.Event().wait(0.05)
     else:
@@ -82,7 +94,7 @@ def test_a_failed_background_snapshot_is_remembered_and_frees_the_lock(monkeypat
 
     monkeypatch.setattr(snapshot, "run", lambda db_path: None)
     for _ in range(100):
-        if snapshot.start_in_background(tmp_path / "x.db") == "started":
+        if snapshot.start_in_background(tmp_path / "x.db", force=True) == "started":
             break
         threading.Event().wait(0.05)
     for _ in range(100):  # a later success clears the remembered failure
@@ -94,3 +106,82 @@ def test_a_failed_background_snapshot_is_remembered_and_frees_the_lock(monkeypat
 
 def test_the_cli_is_given_time_for_a_slow_usage_report():
     assert snapshot.USAGE_TIMEOUT_SECONDS >= 120
+
+
+def _wait_until_idle():
+    for _ in range(100):
+        if snapshot._background.acquire(blocking=False):
+            snapshot._background.release()
+            return
+        threading.Event().wait(0.05)
+    raise AssertionError("the background snapshot never finished")
+
+
+def test_a_reading_is_not_repeated_within_the_interval_unless_forced(monkeypatch, tmp_path):
+    monkeypatch.setattr(snapshot, "run", lambda db_path: None)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+    _wait_until_idle()
+    assert snapshot.start_in_background(tmp_path / "x.db") == "recent"
+    assert snapshot.start_in_background(tmp_path / "x.db", force=True) == "started"
+    _wait_until_idle()
+    # once the interval has passed a plain request starts one again
+    snapshot._last_ok_started -= snapshot.MIN_BACKGROUND_INTERVAL_SECONDS + 1
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+
+
+def test_a_failed_reading_does_not_hold_back_the_next_one(monkeypatch, tmp_path):
+    def failing(db_path):
+        raise TimeoutError("slow")
+
+    monkeypatch.setattr(snapshot, "run", failing)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+    _wait_until_idle()
+    monkeypatch.setattr(snapshot, "run", lambda db_path: None)
+    assert snapshot.start_in_background(tmp_path / "x.db") == "started"
+
+
+def test_a_fresh_reading_is_needed_when_there_is_none_or_its_window_closed(tmp_path):
+    from datetime import UTC, timedelta
+
+    from token_tracker import queries, schema
+
+    db_path = tmp_path / "n.db"
+    connection = queries.connect(db_path)
+    schema.migrate(connection)
+    assert snapshot.needs_fresh_reading(db_path) is True  # nothing recorded yet
+
+    def add(resets_at):
+        connection.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at) VALUES (?,?,?,?)",
+            (datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "Current session", 10.0, resets_at),
+        )
+        connection.commit()
+
+    stamp = lambda hours: (datetime.now(UTC) + timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    add(stamp(-1))
+    assert snapshot.needs_fresh_reading(db_path) is True  # its window has closed
+    add(stamp(2))
+    assert snapshot.needs_fresh_reading(db_path) is False
+    connection.close()
+
+
+def test_a_reading_is_stamped_when_the_slow_report_comes_back(monkeypatch, tmp_path):
+    import time
+
+    from token_tracker import queries
+
+    started = time.time()
+
+    def slow_report():
+        time.sleep(1.2)
+        return "Current session: 11% used · resets Oct 14 at 4:49pm (Europe/Kiev)\n"
+
+    monkeypatch.setattr(snapshot, "capture_usage_output", slow_report)
+    snapshot.run(tmp_path / "s.db")
+    connection = queries.connect(tmp_path / "s.db")
+    (captured_at,) = connection.execute("SELECT captured_at FROM usage_snapshots").fetchone()
+    connection.close()
+    stamped = datetime.strptime(captured_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=ZoneInfo("UTC")).timestamp()
+    # stored to the whole second, so compare with the second the report was asked for: stamped when
+    # it was asked for, this would equal int(started); stamped when it came back, it is a second later
+    assert stamped >= int(started) + 1

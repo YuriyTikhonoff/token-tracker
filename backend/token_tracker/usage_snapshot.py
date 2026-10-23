@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -109,11 +110,14 @@ def capture_usage_output():
     return result.stdout
 
 
-# A snapshot takes up to a minute, so the dashboard's refresh starts one in the
-# background and does not wait. One at a time: a burst of refreshes (every
-# window focus asks for one) must not pile up slow `claude` processes.
+# A snapshot takes up to a minute and about 12 s of CPU, so the dashboard's
+# refresh starts one in the background and does not wait. One at a time, and
+# not more often than every few minutes: every window focus asks for a refresh,
+# and a reading that is a few minutes old is as good as a new one.
+MIN_BACKGROUND_INTERVAL_SECONDS = 300
 _background = threading.Lock()
 _last_error = None
+_last_ok_started = None  # time.monotonic() when the last successful reading began
 
 
 def last_background_error():
@@ -121,16 +125,44 @@ def last_background_error():
     return _last_error
 
 
-def start_in_background(db_path):
-    """Start a snapshot unless one is already running. Returns "started" or "running"."""
+def needs_fresh_reading(db_path):
+    """True when there is no reading yet for the logged-in account, or the window
+    of its latest one has closed, so waiting out the interval would show old numbers."""
+    try:
+        connection = queries.connect(db_path)
+        try:
+            current = accounts.read_current_account()
+            trend = queries.get_usage_snapshots_trend(
+                connection, account=current["account_uuid"] if current else None, with_history=False
+            )
+        finally:
+            connection.close()
+    except Exception:
+        return True
+    return not trend or any(entry["stale"] for entry in trend)
+
+
+def start_in_background(db_path, force=False):
+    """Start a snapshot. Returns "started", "running" (one already is) or
+    "recent" (the last one began less than the interval ago; `force` skips that)."""
+    global _last_ok_started
     if not _background.acquire(blocking=False):
         return "running"
+    if (
+        not force
+        and _last_ok_started is not None
+        and time.monotonic() - _last_ok_started < MIN_BACKGROUND_INTERVAL_SECONDS
+    ):
+        _background.release()
+        return "recent"
 
     def work():
-        global _last_error
+        global _last_error, _last_ok_started
+        began = time.monotonic()
         try:
             run(db_path)
             _last_error = None
+            _last_ok_started = began
         except Exception as error:  # a failed snapshot must not take the server down
             _last_error = f"{type(error).__name__}: {error}"
             print(f"usage snapshot failed: {_last_error}", file=sys.stderr)
@@ -142,8 +174,10 @@ def start_in_background(db_path):
 
 
 def run(db_path):
+    output = capture_usage_output()
+    # Taken after the slow call: the reading is as of now, not of when it began.
     now_local = datetime.now(queries.LOCAL_TZ)
-    snapshots = parse_usage_output(capture_usage_output(), now_local)
+    snapshots = parse_usage_output(output, now_local)
 
     connection = queries.connect(db_path)
     schema.migrate(connection)

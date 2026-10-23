@@ -206,7 +206,8 @@ class OverviewData(BaseModel):
 
 class RefreshResult(BaseModel):
     new_prompt_count: int
-    # "started": a reading of the limits was started in the background; "running": one already was.
+    # "started": a reading of the limits was started in the background; "running": one already was;
+    # "recent": the last one was a few minutes ago, so no new one was started.
     usage_snapshot: str | None = None
     codex_new_usage_count: int | None = None
     codex_usage_check_triggered: bool = False

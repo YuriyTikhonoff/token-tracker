@@ -30,7 +30,9 @@ export function RefreshButton() {
             ? ", limits are being read (about a minute)"
             : result.usage_snapshot === "running"
               ? ", limits are still being read"
-              : "") +
+              : result.usage_snapshot === "recent"
+                ? ", limits were read a few minutes ago"
+                : "") +
           (result.codex_usage_check_triggered
             ? ", Codex rate limits re-checked."
             : ".");

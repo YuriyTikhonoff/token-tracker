@@ -27,9 +27,13 @@ def post_refresh(trigger_codex_usage_check: bool = False):
     except Exception as error:
         errors.append(f"ingest: {error}")
     # `claude -p /usage` takes up to a minute, so it runs in the background: the
-    # reading lands in the database a little later and the next poll shows it.
+    # reading lands in the database a little later and the next poll shows it. It
+    # is not repeated within a few minutes, except when the last reading is of a
+    # window that has closed.
     # A failure of the previous run is reported here, since nobody waits for it.
-    usage_snapshot = usage_snapshot_module.start_in_background(DEFAULT_DB_PATH)
+    usage_snapshot = usage_snapshot_module.start_in_background(
+        DEFAULT_DB_PATH, force=usage_snapshot_module.needs_fresh_reading(DEFAULT_DB_PATH)
+    )
     if usage_snapshot_module.last_background_error():
         errors.append(f"usage_snapshot: {usage_snapshot_module.last_background_error()}")
     # codex_usage_check burns real tokens (a live `codex exec` turn) to force
