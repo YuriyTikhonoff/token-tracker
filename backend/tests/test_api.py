@@ -109,6 +109,16 @@ def test_limits_is_a_small_payload_with_the_accounts_but_no_heavy_parts(client):
     assert payload["timezone"] == "UTC"
 
 
+def test_overview_has_the_top_of_the_dashboard_and_none_of_the_tables(client):
+    payload = client.get("/api/overview").json()
+    assert set(payload) == {
+        "usage_snapshots", "current_session_stats", "daily_usage", "accounts", "selected_account", "timezone",
+    }
+    assert len(payload["daily_usage"]) == 10
+    assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}
+    assert client.get("/api/overview", params={"account": "me"}).json()["selected_account"] == "me"
+
+
 def test_limits_can_be_filtered_to_one_account(client):
     payload = client.get("/api/limits", params={"account": "me"}).json()
     assert payload["selected_account"] == "me"

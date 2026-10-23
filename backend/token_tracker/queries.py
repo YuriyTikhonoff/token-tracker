@@ -120,6 +120,21 @@ def get_today_and_week_totals(connection, pricing, account=None):
     }
 
 
+def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params):
+    """Usage since `earliest_utc_iso`, summed per model and per 15-minute UTC
+    bucket, as (bucket_start_iso, model, input, output, cache_creation,
+    cache_read). The charts need local days, weeks and months, so the time zone
+    is applied in Python, but to a few thousand buckets instead of every row.
+    Every time zone's offset is a multiple of 15 minutes, so a bucket never
+    straddles a local midnight."""
+    return connection.execute(
+        "SELECT substr(timestamp, 1, 14) || printf('%02d', substr(timestamp, 15, 2) / 15 * 15) || ':00Z' AS bucket, "
+        "model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), SUM(cache_read_tokens) "
+        "FROM usage WHERE timestamp >= ?" + account_sql + " GROUP BY bucket, model",
+        (earliest_utc_iso, *account_params),
+    ).fetchall()
+
+
 def get_daily_usage(connection, pricing, days=10, account=None):
     """Per-day token/cost totals for the trailing `days` local days
     (oldest first, today last), zero-filled for days with no usage."""
@@ -129,11 +144,7 @@ def get_daily_usage(connection, pricing, days=10, account=None):
 
     earliest_utc_iso = day_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
-    rows = connection.execute(
-        "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?" + account_sql,
-        (earliest_utc_iso, *account_params),
-    ).fetchall()
+    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
 
     by_date = {
         day_start.strftime("%Y-%m-%d"): {
@@ -176,11 +187,7 @@ def get_weekly_usage(connection, pricing, weeks=8, account=None):
 
     earliest_utc_iso = week_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
-    rows = connection.execute(
-        "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?" + account_sql,
-        (earliest_utc_iso, *account_params),
-    ).fetchall()
+    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
 
     by_week = {
         week_start.strftime("%Y-%m-%d"): {
@@ -237,11 +244,7 @@ def get_monthly_usage(connection, pricing, months=8, account=None):
 
     earliest_utc_iso = month_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
-    rows = connection.execute(
-        "SELECT timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens "
-        "FROM usage WHERE timestamp >= ?" + account_sql,
-        (earliest_utc_iso, *account_params),
-    ).fetchall()
+    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
 
     by_month = {
         month_start.strftime("%Y-%m-%d"): {
@@ -685,9 +688,10 @@ def get_codex_rate_limits_trend(connection, window_hours=6):
 def get_by_project(connection, pricing, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
-        "SELECT s.project, u.model, u.input_tokens, u.output_tokens, "
-        "u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql,
+        "SELECT s.project, u.model, SUM(u.input_tokens), SUM(u.output_tokens), "
+        "SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql
+        + " GROUP BY s.project, u.model",
         account_params,
     ).fetchall()
 
@@ -706,9 +710,10 @@ def get_by_project(connection, pricing, account=None):
 def get_by_session(connection, pricing, limit=None, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
-        "SELECT s.session_id, s.project, s.first_seen, s.last_seen, "
-        "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql,
+        "SELECT s.session_id, s.project, s.first_seen, s.last_seen, u.model, "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql
+        + " GROUP BY s.session_id, s.project, s.first_seen, s.last_seen, u.model",
         account_params,
     ).fetchall()
 
@@ -740,9 +745,10 @@ def get_by_session(connection, pricing, limit=None, account=None):
 def get_by_prompt(connection, pricing, limit=None, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
-        "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, "
-        "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM usage u LEFT JOIN prompts p ON p.prompt_id = u.prompt_id" + account_sql,
+        "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, u.model, "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "FROM usage u LEFT JOIN prompts p ON p.prompt_id = u.prompt_id" + account_sql
+        + " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
         account_params,
     ).fetchall()
 
@@ -771,9 +777,10 @@ def get_prompt_log(connection, pricing, limit=None, account=None):
     appears, with zero tokens/cost."""
     account_sql, account_params = _account_clause(account, "p.account_uuid", "WHERE")
     rows = connection.execute(
-        "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, "
-        "u.model, u.input_tokens, u.output_tokens, u.cache_creation_tokens, u.cache_read_tokens "
-        "FROM prompts p LEFT JOIN usage u ON u.prompt_id = p.prompt_id" + account_sql,
+        "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, u.model, "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "FROM prompts p LEFT JOIN usage u ON u.prompt_id = p.prompt_id" + account_sql
+        + " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
         account_params,
     ).fetchall()
 

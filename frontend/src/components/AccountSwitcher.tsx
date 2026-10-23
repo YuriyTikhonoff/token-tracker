@@ -1,7 +1,7 @@
-import type { AccountSummary } from "../api/types";
+import type { AccountLabel } from "../api/types";
 
 interface AccountSwitcherProps {
-  accounts: AccountSummary[];
+  accounts: (AccountLabel & { email?: string | null })[];
   selected: string | null;
   onSelect: (account: string | null) => void;
 }

@@ -58,6 +58,20 @@ def test_day_buckets_follow_the_configured_time_zone(db, pricing, monkeypatch):
     assert today["input_tokens"] == 7
 
 
+def test_chart_buckets_stay_exact_in_a_half_hour_zone_and_sum_rows_of_one_bucket(db, pricing, monkeypatch):
+    zone = ZoneInfo("Asia/Kolkata")  # UTC+5:30: local midnight falls on a half hour in UTC
+    monkeypatch.setattr(queries, "LOCAL_TZ", zone)
+    midnight = datetime.now(zone).replace(hour=0, minute=0, second=0, microsecond=0)
+    _usage(db, "late-yesterday", _iso(midnight - timedelta(minutes=1)), inp=1, out=0, cc=0, cr=0)
+    _usage(db, "early-today-1", _iso(midnight), inp=10, out=0, cc=0, cr=0)
+    _usage(db, "early-today-2", _iso(midnight + timedelta(minutes=14)), inp=100, out=0, cc=0, cr=0)
+
+    yesterday, today = queries.get_daily_usage(db, pricing, days=3)[-2:]
+
+    assert yesterday["input_tokens"] == 1
+    assert today["input_tokens"] == 110
+
+
 def test_today_total_starts_at_local_midnight(db, pricing, monkeypatch):
     zone = ZoneInfo("Pacific/Kiritimati")
     monkeypatch.setattr(queries, "LOCAL_TZ", zone)

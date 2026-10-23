@@ -9,3 +9,12 @@ body {
   background: #0b0e14;
   color: #e6e6e6;
 }
+
+@keyframes loading-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}

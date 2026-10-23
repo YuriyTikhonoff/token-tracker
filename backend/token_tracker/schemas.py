@@ -192,6 +192,18 @@ class LimitsData(BaseModel):
     timezone: str = "UTC"
 
 
+class OverviewData(BaseModel):
+    """The payload of GET /api/overview: the top of the dashboard (limits and
+    the daily chart), cheap enough to show before the rest of DashboardData."""
+
+    usage_snapshots: list[UsageSnapshotTrend]
+    current_session_stats: CurrentSessionStats | None = None
+    daily_usage: list[DailyUsage]
+    accounts: list[AccountLabel] = []
+    selected_account: str | None = None
+    timezone: str = "UTC"
+
+
 class RefreshResult(BaseModel):
     new_prompt_count: int
     usage_snapshot_count: int | None = None

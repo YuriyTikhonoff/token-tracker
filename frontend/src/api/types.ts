@@ -140,6 +140,22 @@ export interface AccountSummary {
   cost_share: number;
 }
 
+export interface AccountLabel {
+  account_uuid: string;
+  label: string;
+  is_default: boolean;
+}
+
+// GET /api/overview: the top of the dashboard, without the heavy tables.
+export interface OverviewData {
+  usage_snapshots: UsageSnapshotTrend[];
+  current_session_stats: CurrentSessionStats | null;
+  daily_usage: DailyUsage[];
+  accounts: AccountLabel[];
+  selected_account: string | null;
+  timezone: string;
+}
+
 export interface DashboardData {
   totals: Totals;
   totals_by_period: TotalsByPeriod;

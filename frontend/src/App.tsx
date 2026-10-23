@@ -10,7 +10,7 @@ import { CodexLimitsWidget } from "./components/CodexLimitsWidget";
 import { CostBreakdown } from "./components/CostBreakdown";
 import { DailyTokensChart } from "./components/DailyTokensChart";
 import { LimitsWidget } from "./components/LimitsWidget";
-import { LoadingOverlay } from "./components/LoadingOverlay";
+import { LoadingBar } from "./components/LoadingBar";
 import { MonthlyTokensChart } from "./components/MonthlyTokensChart";
 import { PromptLogTable } from "./components/PromptLogTable";
 import { RefreshButton } from "./components/RefreshButton";
@@ -19,12 +19,17 @@ import { TopPromptsTable } from "./components/TopPromptsTable";
 import { TopSessionsTable } from "./components/TopSessionsTable";
 import { WidgetPreview } from "./components/WidgetPreview";
 import { useDashboardData } from "./hooks/useDashboardData";
+import { useOverview } from "./hooks/useOverview";
 import { REFRESH_MUTATION_KEY } from "./hooks/useRefresh";
 import { useSelectedAccount } from "./hooks/useSelectedAccount";
 
 function App() {
   const [activePeriod, setActivePeriod] = useState<Period>("today");
   const [selectedAccount, setSelectedAccount] = useSelectedAccount();
+  // The top of the page comes from the fast /api/overview; everything below it
+  // from /api/data, which takes longer. Each part appears when its data is in.
+  const { data: overview, isFetching: isFetchingOverview } =
+    useOverview(selectedAccount);
   const { data, isFetching } = useDashboardData(selectedAccount);
   const isRefreshing = useIsMutating({ mutationKey: REFRESH_MUTATION_KEY }) > 0;
 
@@ -40,7 +45,7 @@ function App() {
 
   return (
     <div>
-      {(isFetching || isRefreshing) && <LoadingOverlay />}
+      {(isFetching || isFetchingOverview || isRefreshing) && <LoadingBar />}
       <RefreshButton lastPrompt={lastMeaningfulPrompt} />
       {data && data.unknown_models.length > 0 && (
         <div className="mb-6 text-[0.8rem] text-[#d9a441]">
@@ -49,25 +54,34 @@ function App() {
           directory.
         </div>
       )}
-      {data && (
+      {overview && (
         <>
-          {data.accounts.length > 0 && (
-            <>
-              <AccountSwitcher
-                accounts={data.accounts}
-                selected={selectedAccount}
-                onSelect={setSelectedAccount}
-              />
-              <AccountsOverview accounts={data.accounts} />
-            </>
+          {overview.accounts.length > 0 && (
+            <AccountSwitcher
+              accounts={overview.accounts}
+              selected={selectedAccount}
+              onSelect={setSelectedAccount}
+            />
+          )}
+          {data && data.accounts.length > 0 && (
+            <AccountsOverview accounts={data.accounts} />
           )}
           <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
             <LimitsWidget
-              snapshots={data.usage_snapshots}
-              sessionStats={data.current_session_stats}
+              snapshots={overview.usage_snapshots}
+              sessionStats={overview.current_session_stats}
             />
-            <DailyTokensChart days={data.daily_usage} />
+            <DailyTokensChart days={overview.daily_usage} />
           </div>
+        </>
+      )}
+      {!data && (
+        <div className="mt-6 text-[0.8rem] text-[#8a8f98]">
+          Loading the totals, tables and prompt log…
+        </div>
+      )}
+      {data && (
+        <>
           <CollapsibleSection title="Codex usage">
             <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
               <CodexLimitsWidget snapshots={data.codex_rate_limits} />
