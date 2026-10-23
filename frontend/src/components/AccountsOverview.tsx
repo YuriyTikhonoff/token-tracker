@@ -5,8 +5,9 @@ import { useUpdateAccount } from "../hooks/useUpdateAccount";
 import { fmtCost, fmtTokens, stackedTime } from "../lib/format";
 import { Bar } from "./Bar";
 import { CollapsibleSection } from "./shared/CollapsibleSection";
+import { SectionLoader } from "./shared/SectionLoader";
 
-interface AccountsOverviewProps {
+interface AccountRowsProps {
   accounts: AccountSummary[];
 }
 
@@ -52,7 +53,7 @@ function AccountLabel({ account }: { account: AccountSummary }) {
   );
 }
 
-export function AccountsOverview({ accounts }: AccountsOverviewProps) {
+function AccountRows({ accounts }: AccountRowsProps) {
   const update = useUpdateAccount();
   const combined = accounts.reduce(
     (sum, account) => ({
@@ -65,14 +66,7 @@ export function AccountsOverview({ accounts }: AccountsOverviewProps) {
   );
 
   return (
-    <CollapsibleSection
-      title="Accounts"
-      subtitle={
-        <span className="text-[0.8rem] text-[#8a8f98]">
-          who used this machine
-        </span>
-      }
-    >
+    <>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[0.85rem]">
           <thead>
@@ -157,6 +151,25 @@ export function AccountsOverview({ accounts }: AccountsOverviewProps) {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+// Loaded when the section is opened. Every account is listed whichever one the
+// dashboard has selected, so it takes no account.
+export function AccountsOverview() {
+  return (
+    <CollapsibleSection
+      title="Accounts"
+      subtitle={
+        <span className="text-[0.8rem] text-[#8a8f98]">
+          who used this machine
+        </span>
+      }
+    >
+      <SectionLoader<AccountSummary[]> path="accounts" account={null}>
+        {(accounts) => <AccountRows accounts={accounts} />}
+      </SectionLoader>
     </CollapsibleSection>
   );
 }

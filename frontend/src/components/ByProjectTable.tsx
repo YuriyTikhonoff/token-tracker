@@ -3,16 +3,17 @@ import { Bar } from "./Bar";
 import { EmptyRow } from "./EmptyRow";
 import { fmtCost, fmtTokens } from "../lib/format";
 import { CollapsibleSection } from "./shared/CollapsibleSection";
+import { SectionLoader } from "./shared/SectionLoader";
 
 interface ByProjectTableProps {
   projects: ProjectTotal[];
 }
 
-export function ByProjectTable({ projects }: ByProjectTableProps) {
+function ProjectRows({ projects }: ByProjectTableProps) {
   const maxCost = Math.max(0, ...projects.map((project) => project.cost));
 
   return (
-    <CollapsibleSection title="By project">
+    <>
       <table className="w-full border-collapse text-[0.85rem]">
         <thead>
           <tr>
@@ -48,6 +49,16 @@ export function ByProjectTable({ projects }: ByProjectTableProps) {
           )}
         </tbody>
       </table>
+    </>
+  );
+}
+
+export function ByProjectTable({ account }: { account: string | null }) {
+  return (
+    <CollapsibleSection title="By project">
+      <SectionLoader<ProjectTotal[]> path="by-project" account={account}>
+        {(projects) => <ProjectRows projects={projects} />}
+      </SectionLoader>
     </CollapsibleSection>
   );
 }

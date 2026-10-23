@@ -24,14 +24,14 @@ The `Fable` weekly scope is hidden (matches the dashboard).
 ```text
 FastAPI backend  ──GET /widget──▶  a self-contained HTML page
 (routes/widget.py)                 (backend/token_tracker/widget.html)
-       ▲                                   │ fetch('/api/data') every 60s
+       ▲                                   │ fetch('/api/overview') every 60s
        │                                   ▼
        └───────────  Hammerspoon hs.webview (floating, all-Spaces) ◀── you
                      token-tracker/widgets/hammerspoon/token-tracker.lua
 ```
 
 The page is served **from the backend** so it's same-origin with
-`/api/data` (no CORS entry needed). All rendering/polling lives in
+`/api/overview` (no CORS entry needed). All rendering/polling lives in
 `widget.html`; the Lua file is just the window frame — position, level,
 Space behavior, hotkeys.
 

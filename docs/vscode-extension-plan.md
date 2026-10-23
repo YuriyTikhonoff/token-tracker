@@ -95,8 +95,8 @@ Fields used from `/api/limits`:
 | Accounts | `accounts[]` (`account_uuid`, `label`, `is_default`), query parameter `?account=<id>` (`all` or none = combined) |
 | Time zone | `timezone` |
 
-The sidebar view (phase 5) additionally needs `by_project`, which only `/api/data` has; it should
-get its own light endpoint rather than polling `/api/data`.
+The sidebar view (phase 5) additionally needs the per-project totals, which `GET /api/sections/by-project`
+returns on its own.
 
 Scopes are matched by name the same way the dashboard does: `week` in the name is weekly (7 days),
 anything else is the 5-hour session. Model-specific weekly scopes (for example "Current week

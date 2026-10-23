@@ -6,7 +6,7 @@
 <title>Token Tracker widget</title>
 <style>
   /* Served same-origin from the FastAPI backend (routes/widget.py), so
-     fetch('/api/data') needs no CORS. This IS the desktop widget: the
+     fetch('/api/overview') needs no CORS. This IS the desktop widget: the
      Hammerspoon panel (widgets/hammerspoon/token-tracker.lua) and the
      dashboard's Widget preview both load this page. Projection/formatting
      logic is a hand-port of frontend/src/lib/format.ts — keep them in sync. */
@@ -66,7 +66,7 @@
 <div id="card"><div class="msg">loading…</div></div>
 
 <script>
-const API_URL = "/api/data";
+const API_URL = "/api/overview";
 const REFRESH_API_URL = "/api/refresh";
 // Replaced by the backend's configured zone (data.timezone) on every poll.
 let DISPLAY_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;

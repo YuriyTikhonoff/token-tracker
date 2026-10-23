@@ -1,9 +1,10 @@
-"""GET /api/data — direct port of dashboard.py's _send_json.
+"""GET /api/data — the totals and the weekly and monthly charts. The top of the page
+is /api/overview and the collapsed sections are in routes/sections.py.
 
-The full payload is ~2–6 s of SQLite work on a grown DB, and several clients
-(web app, the Hammerspoon overlay, the dashboard's widget-preview iframe) poll
-it on a timer. A short TTL cache collapses overlapping/rapid polls into one
-query so a single blocking worker doesn't make the API look dead. `/api/refresh`
+The payload is still seconds of SQLite work on a grown DB, and several clients
+(web app, the dashboard's widget-preview iframe) poll it on a timer. A short
+TTL cache collapses overlapping/rapid polls into one query so a single blocking
+worker doesn't make the API look dead. `/api/refresh`
 calls `invalidate_data_cache()` so the frontend's Refresh button still gets
 fresh numbers immediately.
 """
@@ -19,8 +20,6 @@ from ..schemas import DashboardData
 
 router = APIRouter()
 
-TOP_LIMIT = 25
-PROMPT_LOG_LIMIT = 200
 CACHE_TTL_SECONDS = 15
 
 _EMPTY_TOTALS = {
@@ -51,39 +50,17 @@ def _build_payload(
         return DashboardData(
             totals=_EMPTY_TOTALS,
             totals_by_period={"today": _EMPTY_TOTALS, "month": _EMPTY_TOTALS, "all": _EMPTY_TOTALS},
-            daily_usage=[],
             weekly_usage=[],
             monthly_usage=[],
-            usage_snapshots=[],
-            current_session_stats=None,
-            by_project=[],
-            by_session=[],
-            by_prompt=[],
-            prompt_log=[],
-            prompt_log_total=0,
-            codex_daily_usage=[],
-            codex_rate_limits=[],
             timezone=config.timezone().key,
         )
 
     pricing = request.app.state.pricing
-    full_prompt_log = queries.get_prompt_log(connection, pricing, account=account)
     return DashboardData(
         totals=queries.get_totals(connection, pricing, account=account),
         totals_by_period=queries.get_totals_by_period(connection, pricing, account=account),
-        daily_usage=queries.get_daily_usage(connection, pricing, account=account),
         weekly_usage=queries.get_weekly_usage(connection, pricing, account=account),
         monthly_usage=queries.get_monthly_usage(connection, pricing, account=account),
-        usage_snapshots=queries.get_usage_snapshots_trend(connection, account=account),
-        current_session_stats=queries.get_current_session_stats(connection, pricing, account=account),
-        by_project=queries.get_by_project(connection, pricing, account=account),
-        by_session=queries.get_by_session(connection, pricing, TOP_LIMIT, account=account),
-        by_prompt=queries.get_by_prompt(connection, pricing, TOP_LIMIT, account=account),
-        prompt_log=full_prompt_log[:PROMPT_LOG_LIMIT],
-        prompt_log_total=len(full_prompt_log),
-        codex_daily_usage=queries.get_codex_daily_usage(connection),
-        codex_rate_limits=queries.get_codex_rate_limits_trend(connection),
-        accounts=queries.get_accounts_summary(connection, pricing),
         unknown_models=queries.get_unknown_models(connection, pricing),
         selected_account=account,
         timezone=config.timezone().key,

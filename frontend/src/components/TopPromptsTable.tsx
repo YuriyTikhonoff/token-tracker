@@ -1,5 +1,6 @@
 import type { PromptTotal } from "../api/types";
 import { CollapsibleSection } from "./shared/CollapsibleSection";
+import { SectionLoader } from "./shared/SectionLoader";
 import { EmptyRow } from "./EmptyRow";
 import { fmtCost, fmtTokens, stackedTime } from "../lib/format";
 
@@ -7,9 +8,9 @@ interface TopPromptsTableProps {
   prompts: PromptTotal[];
 }
 
-export function TopPromptsTable({ prompts }: TopPromptsTableProps) {
+function PromptRows({ prompts }: TopPromptsTableProps) {
   return (
-    <CollapsibleSection title="Top prompts by cost">
+    <>
       <table className="w-full border-collapse text-[0.85rem]">
         <thead>
           <tr>
@@ -63,6 +64,16 @@ export function TopPromptsTable({ prompts }: TopPromptsTableProps) {
           )}
         </tbody>
       </table>
+    </>
+  );
+}
+
+export function TopPromptsTable({ account }: { account: string | null }) {
+  return (
+    <CollapsibleSection title="Top prompts by cost">
+      <SectionLoader<PromptTotal[]> path="by-prompt" account={account}>
+        {(prompts) => <PromptRows prompts={prompts} />}
+      </SectionLoader>
     </CollapsibleSection>
   );
 }

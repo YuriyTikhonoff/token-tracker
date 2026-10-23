@@ -49,9 +49,6 @@ def test_data_combines_accounts_and_reports_each(client):
     payload = client.get("/api/data").json()
     assert payload["totals"]["input_tokens"] == 1300
     assert payload["selected_account"] is None
-    by_label = {a["label"]: a for a in payload["accounts"]}
-    assert by_label["Me"]["all"]["input_tokens"] == 1000 and by_label["Me"]["is_default"] is True
-    assert by_label["Gus"]["all"]["input_tokens"] == 300
     assert payload["timezone"] == "UTC"
     assert payload["unknown_models"] == []
 
@@ -62,13 +59,11 @@ def test_data_can_be_filtered_to_one_account_without_mixing_the_cache(client):
     everyone = client.get("/api/data", params={"account": "all"}).json()
     assert (mine["totals"]["input_tokens"], theirs["totals"]["input_tokens"], everyone["totals"]["input_tokens"]) == (1000, 300, 1300)
     assert mine["selected_account"] == "me"
-    # the summary table always lists everyone, whatever is selected
-    assert len(mine["accounts"]) == 2
 
 
 def test_an_account_can_be_renamed_and_the_data_follows(client):
     assert client.patch("/api/accounts/guest", json={"label": "  Anna  "}).json() == {"ok": True}
-    assert "Anna" in [a["label"] for a in client.get("/api/data").json()["accounts"]]
+    assert "Anna" in [a["label"] for a in client.get("/api/sections/accounts").json()]
 
 
 def test_rename_validation(client):
@@ -78,7 +73,7 @@ def test_rename_validation(client):
 
 def test_making_another_account_the_default_moves_the_flag(client):
     client.patch("/api/accounts/guest", json={"is_default": True})
-    defaults = [a["label"] for a in client.get("/api/data").json()["accounts"] if a["is_default"]]
+    defaults = [a["label"] for a in client.get("/api/sections/accounts").json() if a["is_default"]]
     assert defaults == ["Gus"]
 
 
@@ -94,10 +89,12 @@ def test_a_first_run_without_a_database_answers_with_zeros_not_an_error():
     data_route.invalidate_data_cache()
     with TestClient(app) as fresh:  # entering the context runs the startup hook
         response = fresh.get("/api/data")
+        fresh_accounts = fresh.get("/api/sections/accounts").json()
     assert response.status_code == 200
     payload = response.json()
     assert payload["totals"]["total_tokens"] == 0
-    assert payload["accounts"] == [] and payload["prompt_log"] == []
+    assert all(week["total_tokens"] == 0 for week in payload["weekly_usage"])
+    assert fresh_accounts == []
 
 
 def test_limits_is_a_small_payload_with_the_accounts_but_no_heavy_parts(client):
@@ -117,6 +114,37 @@ def test_overview_has_the_top_of_the_dashboard_and_none_of_the_tables(client):
     assert len(payload["daily_usage"]) == 10
     assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}
     assert client.get("/api/overview", params={"account": "me"}).json()["selected_account"] == "me"
+
+
+def test_data_leaves_out_the_collapsed_sections(client):
+    payload = client.get("/api/data").json()
+    for key in ("by_project", "by_session", "by_prompt", "prompt_log", "prompt_log_total", "codex_daily_usage",
+                "accounts", "daily_usage", "usage_snapshots"):
+        assert key not in payload
+
+
+def test_the_accounts_section_lists_everyone_with_their_totals_whatever_is_selected(client):
+    accounts = client.get("/api/sections/accounts").json()
+    by_label = {a["label"]: a for a in accounts}
+    assert by_label["Me"]["all"]["input_tokens"] == 1000 and by_label["Me"]["is_default"] is True
+    assert by_label["Gus"]["all"]["input_tokens"] == 300
+    assert client.get("/api/sections/accounts", params={"account": "me"}).json() == accounts
+
+
+def test_each_collapsed_section_has_its_own_endpoint_that_follows_the_account(client):
+    assert [row["project"] for row in client.get("/api/sections/by-project").json()] != []
+    sessions = client.get("/api/sections/by-session", params={"account": "guest"}).json()
+    assert [row["session_id"] for row in sessions] == ["s2"]
+    prompts = client.get("/api/sections/by-prompt", params={"account": "me"}).json()
+    assert [row["prompt_id"] for row in prompts] == ["p-s1"]
+    log = client.get("/api/sections/prompt-log").json()
+    assert {row["prompt_id"] for row in log} == {"p-s1", "p-s2"}
+    assert [row["prompt_id"] for row in client.get("/api/sections/prompt-log", params={"account": "all"}).json()] == [
+        row["prompt_id"] for row in log
+    ]
+    codex = client.get("/api/sections/codex").json()
+    assert set(codex) == {"codex_daily_usage", "codex_rate_limits"}
+    assert len(codex["codex_daily_usage"]) == 10
 
 
 def test_limits_can_be_filtered_to_one_account(client):

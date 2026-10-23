@@ -771,17 +771,24 @@ def get_by_prompt(connection, pricing, limit=None, account=None):
 
 
 def get_prompt_log(connection, pricing, limit=None, account=None):
-    """All prompts in chronological order (most recent first), with token/cost
+    """Prompts in chronological order (most recent first), with token/cost
     totals attached. Starts from `prompts` rather than `usage` so a prompt with
     no attributable usage rows (e.g. interrupted before a response) still
-    appears, with zero tokens/cost."""
+    appears, with zero tokens/cost. With a `limit` only the newest prompts are
+    picked first, so only their usage rows are summed."""
     account_sql, account_params = _account_clause(account, "p.account_uuid", "WHERE")
+    # The prompts first, so with a limit only the newest ones have their usage summed.
+    prompts_sql = "SELECT * FROM prompts p" + account_sql
+    params = account_params
+    if limit:
+        prompts_sql += " ORDER BY COALESCE(p.timestamp, '') DESC LIMIT ?"
+        params = (*account_params, limit)
     rows = connection.execute(
         "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, u.model, "
         "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
-        "FROM prompts p LEFT JOIN usage u ON u.prompt_id = p.prompt_id" + account_sql
-        + " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
-        account_params,
+        "FROM (" + prompts_sql + ") p LEFT JOIN usage u ON u.prompt_id = p.prompt_id"
+        " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
+        params,
     ).fetchall()
 
     by_prompt = {}

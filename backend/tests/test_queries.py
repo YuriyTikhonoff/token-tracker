@@ -72,6 +72,23 @@ def test_chart_buckets_stay_exact_in_a_half_hour_zone_and_sum_rows_of_one_bucket
     assert today["input_tokens"] == 110
 
 
+def test_a_limited_prompt_log_keeps_the_newest_prompts_with_their_totals(db, pricing):
+    for index in range(5):
+        prompt = f"p{index}"
+        db.execute(
+            "INSERT INTO prompts (prompt_id, session_id, preview, timestamp) VALUES (?,?,?,?)",
+            (prompt, "s", prompt, f"2026-10-1{index}T09:00:00.000Z"),
+        )
+        _usage(db, f"a{index}", f"2026-10-1{index}T09:00:05.000Z", inp=index + 1, out=0, cc=0, cr=0)
+        db.execute("UPDATE usage SET prompt_id = ? WHERE assistant_uuid = ?", (prompt, f"a{index}"))
+
+    limited = queries.get_prompt_log(db, pricing, limit=2)
+
+    assert [row["prompt_id"] for row in limited] == ["p4", "p3"]
+    assert [row["tokens"] for row in limited] == [5, 4]
+    assert limited == queries.get_prompt_log(db, pricing)[:2]
+
+
 def test_today_total_starts_at_local_midnight(db, pricing, monkeypatch):
     zone = ZoneInfo("Pacific/Kiritimati")
     monkeypatch.setattr(queries, "LOCAL_TZ", zone)

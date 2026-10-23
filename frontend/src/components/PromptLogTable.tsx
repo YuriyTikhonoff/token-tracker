@@ -1,26 +1,16 @@
 import type { PromptLogEntry } from "../api/types";
 import { CollapsibleSection } from "./shared/CollapsibleSection";
+import { SectionLoader } from "./shared/SectionLoader";
 import { EmptyRow } from "./EmptyRow";
 import { fmtCost, fmtTokens, stackedTime } from "../lib/format";
 
-interface PromptLogTableProps {
+interface PromptLogRowsProps {
   entries: PromptLogEntry[];
-  total: number;
 }
 
-export function PromptLogTable({ entries, total }: PromptLogTableProps) {
-  const subtitle =
-    total > entries.length
-      ? `(most recent ${entries.length} of ${total})`
-      : `(${total} total, most recent first)`;
-
+function PromptLogRows({ entries }: PromptLogRowsProps) {
   return (
-    <CollapsibleSection
-      title="Prompt log"
-      subtitle={
-        <span className="text-[0.85rem] text-[#8a8f98]">{subtitle}</span>
-      }
-    >
+    <>
       <table className="w-full border-collapse text-[0.85rem]">
         <thead>
           <tr>
@@ -85,6 +75,16 @@ export function PromptLogTable({ entries, total }: PromptLogTableProps) {
           )}
         </tbody>
       </table>
+    </>
+  );
+}
+
+export function PromptLogTable({ account }: { account: string | null }) {
+  return (
+    <CollapsibleSection title="Prompt log">
+      <SectionLoader<PromptLogEntry[]> path="prompt-log" account={account}>
+        {(entries) => <PromptLogRows entries={entries} />}
+      </SectionLoader>
     </CollapsibleSection>
   );
 }

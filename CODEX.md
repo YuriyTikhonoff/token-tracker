@@ -67,8 +67,8 @@ timer loop (unlike `usage_snapshot.py`, which does run there).
     `_extrapolate_pct_used`/`_trim_to_current_cycle` trend machinery
     verbatim (same reset-boundary-jitter handling Claude's weekly scope
     needs), rather than reimplementing it.
-- `GET /api/data` now returns `codex_daily_usage` and `codex_rate_limits`
-  alongside the existing Claude fields.
+- `GET /api/sections/codex` returns `codex_daily_usage` and `codex_rate_limits`
+  (the dashboard loads it when its Codex section is opened).
 - `POST /api/refresh` now also runs `codex_ingest.run()` (wrapped in its own
   try/except, like the existing `ingest`/`usage_snapshot` calls, so one
   failing doesn't block the others) — or, when called with

@@ -1,5 +1,6 @@
 import type { SessionTotal } from "../api/types";
 import { CollapsibleSection } from "./shared/CollapsibleSection";
+import { SectionLoader } from "./shared/SectionLoader";
 import { EmptyRow } from "./EmptyRow";
 import { fmtCost, fmtTokens, stackedTime } from "../lib/format";
 
@@ -7,9 +8,9 @@ interface TopSessionsTableProps {
   sessions: SessionTotal[];
 }
 
-export function TopSessionsTable({ sessions }: TopSessionsTableProps) {
+function SessionRows({ sessions }: TopSessionsTableProps) {
   return (
-    <CollapsibleSection title="Top sessions by cost">
+    <>
       <table className="w-full border-collapse text-[0.85rem]">
         <thead>
           <tr>
@@ -69,6 +70,16 @@ export function TopSessionsTable({ sessions }: TopSessionsTableProps) {
           )}
         </tbody>
       </table>
+    </>
+  );
+}
+
+export function TopSessionsTable({ account }: { account: string | null }) {
+  return (
+    <CollapsibleSection title="Top sessions by cost">
+      <SectionLoader<SessionTotal[]> path="by-session" account={account}>
+        {(sessions) => <SessionRows sessions={sessions} />}
+      </SectionLoader>
     </CollapsibleSection>
   );
 }

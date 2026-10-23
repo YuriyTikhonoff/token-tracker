@@ -154,19 +154,8 @@ class AccountUpdate(BaseModel):
 class DashboardData(BaseModel):
     totals: Totals
     totals_by_period: TotalsByPeriod
-    daily_usage: list[DailyUsage]
     weekly_usage: list[WeeklyUsage]
     monthly_usage: list[MonthlyUsage]
-    usage_snapshots: list[UsageSnapshotTrend]
-    current_session_stats: CurrentSessionStats | None = None
-    by_project: list[ProjectTotal]
-    by_session: list[SessionTotal]
-    by_prompt: list[PromptTotal]
-    prompt_log: list[PromptLogEntry]
-    prompt_log_total: int
-    codex_daily_usage: list[CodexDailyUsage] = []
-    codex_rate_limits: list[CodexRateLimitTrend] = []
-    accounts: list[AccountSummary] = []
     selected_account: str | None = None
     # IANA name of the zone the numbers are cut in and times should be shown in.
     timezone: str = "UTC"
@@ -190,6 +179,14 @@ class LimitsData(BaseModel):
     accounts: list[AccountLabel] = []
     selected_account: str | None = None
     timezone: str = "UTC"
+
+
+class CodexSection(BaseModel):
+    """GET /api/sections/codex: the Codex part of the dashboard, loaded when
+    its section is opened."""
+
+    codex_daily_usage: list[CodexDailyUsage] = []
+    codex_rate_limits: list[CodexRateLimitTrend] = []
 
 
 class OverviewData(BaseModel):

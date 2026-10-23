@@ -156,22 +156,17 @@ export interface OverviewData {
   timezone: string;
 }
 
+// GET /api/sections/codex: loaded when the Codex section is opened.
+export interface CodexSectionData {
+  codex_daily_usage: CodexDailyUsage[];
+  codex_rate_limits: CodexRateLimitTrend[];
+}
+
 export interface DashboardData {
   totals: Totals;
   totals_by_period: TotalsByPeriod;
-  daily_usage: DailyUsage[];
   weekly_usage: WeeklyUsage[];
   monthly_usage: MonthlyUsage[];
-  usage_snapshots: UsageSnapshotTrend[];
-  current_session_stats: CurrentSessionStats | null;
-  by_project: ProjectTotal[];
-  by_session: SessionTotal[];
-  by_prompt: PromptTotal[];
-  prompt_log: PromptLogEntry[];
-  prompt_log_total: number;
-  codex_daily_usage: CodexDailyUsage[];
-  codex_rate_limits: CodexRateLimitTrend[];
-  accounts: AccountSummary[];
   selected_account: string | null;
   timezone: string;
   unknown_models: string[];

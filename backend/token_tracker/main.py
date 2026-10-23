@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import queries, schema
-from .routes import accounts, data, limits, overview, refresh, widget
+from .routes import accounts, data, limits, overview, refresh, sections, widget
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -50,6 +50,7 @@ app.include_router(data.router)
 app.include_router(limits.router)
 app.include_router(overview.router)
 app.include_router(refresh.router)
+app.include_router(sections.router)
 app.include_router(widget.router)
 
 # Last, so it never shadows the routes above.
