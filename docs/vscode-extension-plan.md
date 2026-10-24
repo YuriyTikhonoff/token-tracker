@@ -37,8 +37,9 @@ Three items, right-aligned, in this order:
   - runs out earlier than that: error background (`statusBarItem.errorBackground`).
   VS Code colours a whole item, which is why each limit is its own item.
 - **Limit reached**: `wk limit hit` on the error background. **No window open** (5-hour only):
-  `5h —`. **No snapshot yet / backend offline**: one item `◷ Token Tracker offline` that runs the
-  start command on click.
+  `5h —`. **Never had a reading / backend offline**: one item `◷ Token Tracker offline` that runs the
+  start command on click. **Backend stopped answering after a reading**: the items stay with a
+  "(stale)" mark after two failed reads, and reads are retried after 5, 10, 20 and 30 seconds.
 - The difference in percentage points is not in the status bar; it is in the tooltip.
 
 ### Tooltip (hover on any of the three items)

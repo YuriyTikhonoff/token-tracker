@@ -74,7 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const settings = readSettings();
       const lines = formatReport({
         now: new Date(),
-        backend: controller.state.kind,
+        backend: controller.state.kind === "ready" && controller.state.staleReason ? "stale" : controller.state.kind,
         url: settings.url,
         account: settings.account,
         lastOkAt: controller.lastOkAt,

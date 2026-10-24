@@ -12,7 +12,7 @@ export interface ItemReport {
 
 export interface ReportInput {
   now: Date;
-  backend: "loading" | "ready" | "offline";
+  backend: "loading" | "ready" | "stale" | "offline";
   url: string;
   account: string;
   lastOkAt: Date | null;

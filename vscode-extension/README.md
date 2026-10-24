@@ -25,6 +25,12 @@ $(history) 106.6M · $36.77   5h ▲ +47m   wk ▼ −2.7d
 The backend has to be running (`token-tracker serve`, or `token-tracker run`). If it is not, the
 status bar says so, and "Token Tracker: Start Backend" starts it.
 
+When the backend stops answering, the status bar keeps the last numbers. After two failed reads in
+a row they get a "(stale)" mark and the tooltip says since when, and the extension retries after 5,
+10, 20 and 30 seconds before it goes back to the regular interval. "Token Tracker offline" shows only
+when there has never been a reading in this window. "Token Tracker: Show Status" lists what is
+shown and why, and the log ("Token Tracker: Show Log") has a timestamp on every line.
+
 ### Install it in your everyday VS Code
 
 ```bash

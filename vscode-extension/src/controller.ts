@@ -3,18 +3,20 @@ import * as vscode from "vscode";
 import type { UsageData } from "./api";
 import { fetchUsage, requestRefresh } from "./client";
 import { stamp } from "./diagnostics";
+import { isStale, retryDelaySeconds } from "./retry";
 import { readSettings } from "./settings";
 
 export type State =
   | { kind: "loading" }
-  | { kind: "ready"; data: UsageData; at: Date }
+  // `staleReason` is set when the latest reads failed and `data` is an older reading.
+  | { kind: "ready"; data: UsageData; at: Date; staleReason?: string }
   | { kind: "offline"; reason: string };
 
-// A failed read keeps showing the last good one, and the status bar only turns
-// to "offline" after this many failures in a row (about three minutes at the
-// default interval). The backend restarts when its code changes, or can be busy
-// with an ingest; neither is worth a flicker.
-const OFFLINE_AFTER_FAILURES = 3;
+// A failed read keeps showing the last good one; after a couple in a row it is
+// marked stale instead of being replaced, and reads are retried within seconds.
+// The status bar turns to "offline" only when there has never been a reading.
+// The backend restarts when its code changes, or can be busy with an ingest;
+// neither is worth losing the numbers over.
 
 // Owns the latest reading of the backend and when to take the next one. Views
 // subscribe to `onDidChange` and render from `state`; they never fetch.
@@ -28,6 +30,7 @@ export class Controller implements vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<State>();
   readonly onDidChange = this.emitter.event;
   private timer: NodeJS.Timeout | undefined;
+  private retryTimer: NodeJS.Timeout | undefined;
   private polling = false;
   private readonly subscriptions: vscode.Disposable[] = [];
 
@@ -55,6 +58,7 @@ export class Controller implements vscode.Disposable {
     try {
       const data = await fetchUsage(settings.url, settings.account);
       this.failures = 0;
+      clearTimeout(this.retryTimer);
       this.lastError = null;
       this.lastOkAt = new Date();
       this.set({ kind: "ready", data, at: this.lastOkAt });
@@ -66,12 +70,14 @@ export class Controller implements vscode.Disposable {
       const reason = error instanceof Error ? error.message : String(error);
       this.failures += 1;
       this.lastError = reason;
-      if (this.state.kind === "ready" && this.failures < OFFLINE_AFTER_FAILURES) {
+      if (this.state.kind === "ready") {
         this.log.appendLine(`${stamp()} read failed (${this.failures} in a row), keeping the last reading: ${reason}`);
+        if (isStale(this.failures)) this.set({ ...this.state, staleReason: reason });
       } else {
         this.set({ kind: "offline", reason });
         this.log.appendLine(`${stamp()} offline: ${settings.url}: ${reason}`);
       }
+      this.retrySoon();
     } finally {
       this.polling = false;
     }
@@ -81,6 +87,13 @@ export class Controller implements vscode.Disposable {
     const settings = readSettings();
     await requestRefresh(settings.url);
     await this.poll();
+  }
+
+  // Retries run whatever the window focus: they stop at the first success or after a few tries.
+  private retrySoon(): void {
+    clearTimeout(this.retryTimer);
+    const seconds = retryDelaySeconds(this.failures);
+    if (seconds !== null) this.retryTimer = setTimeout(() => void this.poll(), seconds * 1000);
   }
 
   private set(state: State): void {
@@ -98,6 +111,7 @@ export class Controller implements vscode.Disposable {
 
   dispose(): void {
     if (this.timer) clearInterval(this.timer);
+    clearTimeout(this.retryTimer);
     this.subscriptions.forEach((subscription) => subscription.dispose());
     this.emitter.dispose();
   }

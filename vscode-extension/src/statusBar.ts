@@ -57,12 +57,13 @@ function resetLines(paces: LimitPace[], timeZone: string): string {
     .join("  \n");
 }
 
-function tooltip(data: UsageData, paces: LimitPace[]): vscode.MarkdownString {
+function tooltip(data: UsageData, paces: LimitPace[], stale?: string): vscode.MarkdownString {
   const { today, week } = data;
   const markdown = new vscode.MarkdownString(undefined, true);
   markdown.isTrusted = { enabledCommands: COMMANDS };
   const parts = [
     "**Claude limits against an even pace**",
+    stale ?? "",
     paces.length > 0 ? limitRows(paces) : "_No open limit window._",
     paces.length > 0 ? resetLines(paces, data.timezone) : "",
     `Today ${fmtTokens(today.total_tokens)} · ${fmtCost(today.cost)}` +
@@ -147,11 +148,15 @@ export class StatusBar implements vscode.Disposable {
     const sessionPace = sessionSnapshot ? computePace(sessionSnapshot) : null;
     const weekPace = weekSnapshot ? computePace(weekSnapshot) : null;
     const paces = [sessionPace, weekPace].filter((pace): pace is LimitPace => pace !== null);
-    const hover = tooltip(data, paces);
+    const staleNote = state.staleReason
+      ? `**Stale:** the backend is not answering (${state.staleReason}). These numbers are from ${fmtClock(state.at, data.timezone)}.`
+      : undefined;
+    const hover = tooltip(data, paces, staleNote);
+    const mark = state.staleReason ? " (stale)" : "";
 
     const settings = readSettings();
     if (settings.showToday) {
-      this.today.text = `$(history) ${fmtTokens(data.today.total_tokens)} · ${fmtCost(data.today.cost)}`;
+      this.today.text = `$(history) ${fmtTokens(data.today.total_tokens)} · ${fmtCost(data.today.cost)}${mark}`;
       this.today.command = "tokenTracker.openDashboard";
       this.today.tooltip = hover;
       applySeverity(this.today, null);
@@ -162,8 +167,8 @@ export class StatusBar implements vscode.Disposable {
       this.note(this.today, false, "turned off in settings");
     }
 
-    this.show(this.session, "5h", sessionSnapshot, sessionPace, hover);
-    this.show(this.week, "wk", weekSnapshot, weekPace, hover);
+    this.show(this.session, "5h", sessionSnapshot, sessionPace, hover, mark);
+    this.show(this.week, "wk", weekSnapshot, weekPace, hover, mark);
   }
 
   private show(
@@ -172,6 +177,7 @@ export class StatusBar implements vscode.Disposable {
     snapshot: LimitSnapshot | undefined,
     pace: LimitPace | null,
     hover: vscode.MarkdownString,
+    mark: string,
   ): void {
     // No snapshot at all: the scope has never been recorded, so show nothing
     // rather than a dash. A snapshot whose window has closed shows a dash.
@@ -180,7 +186,7 @@ export class StatusBar implements vscode.Disposable {
       this.note(item, false, `no ${name === "5h" ? "5-hour" : "weekly"} reading in the data`);
       return;
     }
-    item.text = `${name} ${statusText(pace)}`;
+    item.text = `${name} ${statusText(pace)}${mark}`;
     item.tooltip = hover;
     applySeverity(item, pace?.severity ?? null);
     item.show();
