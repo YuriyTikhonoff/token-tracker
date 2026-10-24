@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import type { LimitSnapshot, UsageData } from "./api";
 import type { Controller, State } from "./controller";
+import { stamp, type ItemReport } from "./diagnostics";
 import { fmtClock, fmtCost, fmtTokens, fmtWeekdayClock } from "./format";
 import { type LimitPace, type Severity, arrow, computePace, isShownScope, limitKind, statusText } from "./pace";
 import { readSettings } from "./settings";
@@ -86,8 +87,9 @@ export class StatusBar implements vscode.Disposable {
   private readonly session = createItem("tokenTracker.session", "Token Tracker: 5-hour limit", PRIORITY.session);
   private readonly week = createItem("tokenTracker.week", "Token Tracker: weekly limit", PRIORITY.week);
   private readonly subscriptions: vscode.Disposable[];
+  private readonly reports = new Map<string, ItemReport>();
 
-  constructor(controller: Controller) {
+  constructor(controller: Controller, private readonly log: vscode.OutputChannel) {
     for (const item of [this.today, this.session, this.week]) item.command = "tokenTracker.openDashboard";
     this.subscriptions = [
       controller.onDidChange((state) => this.render(state)),
@@ -98,14 +100,33 @@ export class StatusBar implements vscode.Disposable {
     this.render(controller.state);
   }
 
+  /** What each item was last told to do, for the status report and the log. */
+  itemReports(): ItemReport[] {
+    return [...this.reports.values()];
+  }
+
+  // Every change of an item is logged, so the log says when and why one went away.
+  private note(item: vscode.StatusBarItem, shown: boolean, why: string): void {
+    const name = item.name ?? "";
+    const previous = this.reports.get(name);
+    const text = shown ? item.text : "";
+    this.reports.set(name, { name, shown, text, why });
+    if (!previous || previous.shown !== shown) this.log.appendLine(`${stamp()} ${name}: ${shown ? `shown "${text}"` : `hidden, ${why}`}`);
+  }
+
   private render(state: State): void {
     if (state.kind === "loading") {
-      for (const item of [this.today, this.session, this.week]) item.hide();
+      for (const item of [this.today, this.session, this.week]) {
+        item.hide();
+        this.note(item, false, "first reading not back yet");
+      }
       return;
     }
     if (state.kind === "offline") {
       this.session.hide();
+      this.note(this.session, false, "backend offline");
       this.week.hide();
+      this.note(this.week, false, "backend offline");
       this.today.text = "$(circle-slash) Token Tracker offline";
       const hover = new vscode.MarkdownString(
         `Could not read the Token Tracker backend: ${state.reason}\n\n[Start backend](command:tokenTracker.startBackend)`,
@@ -115,6 +136,7 @@ export class StatusBar implements vscode.Disposable {
       this.today.command = "tokenTracker.startBackend";
       applySeverity(this.today, null);
       this.today.show();
+      this.note(this.today, true, "offline notice");
       return;
     }
 
@@ -134,8 +156,10 @@ export class StatusBar implements vscode.Disposable {
       this.today.tooltip = hover;
       applySeverity(this.today, null);
       this.today.show();
+      this.note(this.today, true, "");
     } else {
       this.today.hide();
+      this.note(this.today, false, "turned off in settings");
     }
 
     this.show(this.session, "5h", sessionSnapshot, sessionPace, hover);
@@ -153,12 +177,14 @@ export class StatusBar implements vscode.Disposable {
     // rather than a dash. A snapshot whose window has closed shows a dash.
     if (!snapshot) {
       item.hide();
+      this.note(item, false, `no ${name === "5h" ? "5-hour" : "weekly"} reading in the data`);
       return;
     }
     item.text = `${name} ${statusText(pace)}`;
     item.tooltip = hover;
     applySeverity(item, pace?.severity ?? null);
     item.show();
+    this.note(item, true, "");
   }
 
   dispose(): void {

@@ -2,13 +2,16 @@ import * as vscode from "vscode";
 
 import { startBackend, stopStartedBackend } from "./backend";
 import { Controller } from "./controller";
+import { formatReport, stamp } from "./diagnostics";
 import { readSettings } from "./settings";
 import { StatusBar } from "./statusBar";
 
 export function activate(context: vscode.ExtensionContext): void {
   const log = vscode.window.createOutputChannel("Token Tracker");
   const controller = new Controller(log);
-  const statusBar = new StatusBar(controller);
+  const statusBar = new StatusBar(controller, log);
+  const version = (context.extension.packageJSON as { version?: string }).version ?? "?";
+  log.appendLine(`${stamp()} started, version ${version}, reading ${readSettings().url} every ${readSettings().refreshSeconds} s`);
 
   // With auto-start on, an offline backend is started once; the next poll
   // finds it. A backend this extension did not start is never touched.
@@ -67,6 +70,25 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.commands.registerCommand("tokenTracker.showLog", () => log.show()),
+    vscode.commands.registerCommand("tokenTracker.showStatus", async () => {
+      const settings = readSettings();
+      const lines = formatReport({
+        now: new Date(),
+        backend: controller.state.kind,
+        url: settings.url,
+        account: settings.account,
+        lastOkAt: controller.lastOkAt,
+        failures: controller.failures,
+        lastError: controller.lastError,
+        items: statusBar.itemReports(),
+      });
+      log.appendLine(`${stamp()} status report:\n  ${lines.join("\n  ")}`);
+      const picked = await vscode.window.showQuickPick(
+        [...lines.map((label) => ({ label, id: "" })), { label: "$(output) Open the log", id: "log" }],
+        { placeHolder: "Token Tracker status" },
+      );
+      if (picked?.id === "log") log.show();
+    }),
   );
 }
 

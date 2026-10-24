@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import type { UsageData } from "./api";
 import { fetchUsage, requestRefresh } from "./client";
+import { stamp } from "./diagnostics";
 import { readSettings } from "./settings";
 
 export type State =
@@ -19,12 +20,15 @@ const OFFLINE_AFTER_FAILURES = 3;
 // subscribe to `onDidChange` and render from `state`; they never fetch.
 export class Controller implements vscode.Disposable {
   state: State = { kind: "loading" };
+  // For the status report: the last successful read and how the reads have been failing.
+  lastOkAt: Date | null = null;
+  failures = 0;
+  lastError: string | null = null;
 
   private readonly emitter = new vscode.EventEmitter<State>();
   readonly onDidChange = this.emitter.event;
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
-  private failures = 0;
   private readonly subscriptions: vscode.Disposable[] = [];
 
   constructor(private readonly log: vscode.OutputChannel) {
@@ -51,19 +55,22 @@ export class Controller implements vscode.Disposable {
     try {
       const data = await fetchUsage(settings.url, settings.account);
       this.failures = 0;
-      this.set({ kind: "ready", data, at: new Date() });
+      this.lastError = null;
+      this.lastOkAt = new Date();
+      this.set({ kind: "ready", data, at: this.lastOkAt });
       this.log.appendLine(
-        `read ${data.usage_snapshots.length} limit(s) and ${data.today.total_tokens} tokens today ` +
+        `${stamp()} read ${data.usage_snapshots.length} limit(s) and ${data.today.total_tokens} tokens today ` +
           `from ${settings.url} (account: ${settings.account})`,
       );
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.failures += 1;
+      this.lastError = reason;
       if (this.state.kind === "ready" && this.failures < OFFLINE_AFTER_FAILURES) {
-        this.log.appendLine(`read failed (${this.failures} in a row), keeping the last reading: ${reason}`);
+        this.log.appendLine(`${stamp()} read failed (${this.failures} in a row), keeping the last reading: ${reason}`);
       } else {
         this.set({ kind: "offline", reason });
-        this.log.appendLine(`offline: ${settings.url}: ${reason}`);
+        this.log.appendLine(`${stamp()} offline: ${settings.url}: ${reason}`);
       }
     } finally {
       this.polling = false;
