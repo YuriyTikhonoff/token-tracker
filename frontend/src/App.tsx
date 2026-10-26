@@ -55,7 +55,12 @@ function App() {
           )}
           {overview.accounts.length > 0 && <AccountsOverview />}
           <div className="flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:flex-1">
-            <LimitsWidget snapshots={overview.usage_snapshots} />
+            <LimitsWidget
+              snapshots={overview.usage_snapshots}
+              accounts={overview.accounts}
+              selectedAccount={selectedAccount}
+              weeklyByAccount={overview.weekly_limits_by_account ?? []}
+            />
             <DailyTokensChart
               days={overview.daily_usage}
               accounts={overview.accounts}

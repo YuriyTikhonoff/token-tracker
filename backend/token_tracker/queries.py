@@ -467,6 +467,22 @@ def get_usage_snapshots_trend(connection, window_hours=6, account=None, with_his
     return sorted(results, key=lambda entry: entry["scope"])
 
 
+def get_weekly_limits_by_account(connection, window_hours=6):
+    """Each account's own weekly-limit readings (the same entries
+    get_usage_snapshots_trend gives, weekly scopes only, without history), for
+    the accounts that have any. Every account has its own subscription limits,
+    so for all accounts together the combined entry mixes them up."""
+    results = []
+    for account in get_account_labels(connection):
+        trend = get_usage_snapshots_trend(
+            connection, window_hours, account=account["account_uuid"], with_history=False
+        )
+        weekly = [entry for entry in trend if _is_weekly_scope(entry["scope"])]
+        if weekly:
+            results.append({"account_uuid": account["account_uuid"], "snapshots": weekly})
+    return results
+
+
 def get_codex_daily_usage(connection, days=10):
     """Per-day Codex token totals for the trailing `days` local days
     (oldest first, today last), zero-filled for days with no usage. Same

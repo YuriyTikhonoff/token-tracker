@@ -175,6 +175,26 @@ def test_limit_snapshots_are_kept_per_account(db):
     assert len(queries.get_usage_snapshots_trend(db)) == 1  # everyone: one entry per scope
 
 
+def test_weekly_limits_are_listed_per_account_and_only_for_weekly_scopes(db):
+    db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('me', 'Me', NULL, 1)")
+    db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('guest', 'Gus', NULL, 0)")
+    db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('idle', 'Idle', NULL, 0)")
+    resets = (datetime.now(UTC) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    captured = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for account, scope, pct in (("me", "Current week (all models)", 5.0), ("guest", "Current week (all models)", 40.0), ("guest", "Current session", 80.0)):
+        db.execute(
+            "INSERT INTO usage_snapshots (captured_at, scope, pct_used, resets_at, account_uuid) VALUES (?,?,?,?,?)",
+            (captured, scope, pct, resets, account),
+        )
+
+    limits = queries.get_weekly_limits_by_account(db)
+
+    assert [entry["account_uuid"] for entry in limits] == ["me", "guest"]  # no readings: left out
+    assert [[s["scope"] for s in entry["snapshots"]] for entry in limits] == [["Current week (all models)"]] * 2
+    assert [entry["snapshots"][0]["captured_pct_used"] for entry in limits] == [5.0, 40.0]
+    assert limits[0]["snapshots"][0]["history"] == []
+
+
 def test_limit_history_covers_the_current_window_and_drops_flat_runs(db):
     samples = [
         ("2026-10-12T20:00:00Z", 90.0, "2026-10-13T15:00:00Z"),  # previous week

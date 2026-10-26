@@ -141,7 +141,7 @@ const WEEKLY_WINDOW_HOURS = 24 * 7;
 // Scope names come verbatim from `claude -p "/usage"` (see usage_snapshot.py),
 // not a stable identifier -- mirrors the backend's best-effort match in
 // queries.py's _is_weekly_scope.
-function isWeeklyScope(scope: string): boolean {
+export function isWeeklyScope(scope: string): boolean {
   return scope.toLowerCase().includes("week");
 }
 

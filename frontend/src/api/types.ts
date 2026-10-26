@@ -81,6 +81,11 @@ export interface UsageSnapshotTrend {
   history: UsagePoint[];
 }
 
+export interface AccountWeeklyLimits {
+  account_uuid: string;
+  snapshots: UsageSnapshotTrend[];
+}
+
 export interface ProjectTotal {
   project: string;
   tokens: number;
@@ -159,6 +164,8 @@ export interface OverviewData {
   usage_snapshots: UsageSnapshotTrend[];
   daily_usage: DailyUsage[];
   accounts: AccountLabel[];
+  /** Only filled for all accounts together. */
+  weekly_limits_by_account?: AccountWeeklyLimits[];
   selected_account: string | null;
   timezone: string;
 }

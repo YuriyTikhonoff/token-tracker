@@ -34,6 +34,7 @@ def get_overview(
         usage_snapshots=queries.get_usage_snapshots_trend(connection, account=account),
         daily_usage=queries.get_daily_usage(connection, pricing, account=account, by_account=account is None),
         accounts=queries.get_account_labels(connection),
+        weekly_limits_by_account=queries.get_weekly_limits_by_account(connection) if account is None else [],
         selected_account=account,
         timezone=timezone,
     )

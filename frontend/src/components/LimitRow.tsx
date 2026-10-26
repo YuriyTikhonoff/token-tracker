@@ -10,6 +10,8 @@ import {
 
 interface LimitRowProps {
   snapshot: UsageSnapshotTrend;
+  /** Shown instead of the scope, with a colour swatch, when the row belongs to one account. */
+  account?: { label: string; color: string };
 }
 
 const BAR_FILL_COLORS: Record<ReturnType<typeof limitSeverity>, string> = {
@@ -24,7 +26,7 @@ const BAR_FILL_COLORS: Record<ReturnType<typeof limitSeverity>, string> = {
 export const OVER_PACE_COLOR = "#ffd23f";
 export const UNDER_PACE_COLOR = "#333947";
 
-export function LimitRow({ snapshot }: LimitRowProps) {
+export function LimitRow({ snapshot, account }: LimitRowProps) {
   const severity = limitSeverity(snapshot.pct_used);
   const projection = projectionLines(snapshot);
   const pacePct = pacePercent(snapshot);
@@ -42,7 +44,15 @@ export function LimitRow({ snapshot }: LimitRowProps) {
   return (
     <div className="grid grid-cols-[340px_1fr] items-center gap-3 border-b border-[#1d2129] py-2 last:border-b-0">
       <div>
-        <div className="text-[0.85rem] text-[#c7cbd4]">{snapshot.scope}</div>
+        <div className="flex items-center gap-1.5 text-[0.85rem] text-[#c7cbd4]">
+          {account && (
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
+              style={{ backgroundColor: account.color }}
+            />
+          )}
+          {account ? account.label : snapshot.scope}
+        </div>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             {projection.resetLine && (

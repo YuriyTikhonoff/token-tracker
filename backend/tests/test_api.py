@@ -109,7 +109,7 @@ def test_limits_is_a_small_payload_with_the_accounts_but_no_heavy_parts(client):
 def test_overview_has_the_top_of_the_dashboard_and_none_of_the_tables(client):
     payload = client.get("/api/overview").json()
     assert set(payload) == {
-        "usage_snapshots", "daily_usage", "accounts", "selected_account", "timezone",
+        "usage_snapshots", "daily_usage", "accounts", "weekly_limits_by_account", "selected_account", "timezone",
     }
     assert len(payload["daily_usage"]) == 10
     assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}

@@ -20,6 +20,11 @@ const UNKNOWN_COLOR = "#6b7280";
 const UNKNOWN_ID = "__unknown__";
 
 /** One slice per known account, plus "Unknown" for usage no known account owns. */
+/** The colour of the account at this position in the account list, shared by every chart and bar. */
+export function accountColor(index: number): string {
+  return ACCOUNT_COLORS[index % ACCOUNT_COLORS.length];
+}
+
 export function accountSlices(parts: AccountDailyUsage[] | undefined, accounts: AccountLabel[]): Slice[] {
   const rows = parts ?? [];
   const slices: Slice[] = accounts.map((account, index) => {
@@ -27,7 +32,7 @@ export function accountSlices(parts: AccountDailyUsage[] | undefined, accounts: 
     return {
       id: account.account_uuid,
       label: account.label,
-      color: ACCOUNT_COLORS[index % ACCOUNT_COLORS.length],
+      color: accountColor(index),
       amount: part?.total_tokens ?? 0,
       cost: part?.cost ?? 0,
     };

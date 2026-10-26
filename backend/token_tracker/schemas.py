@@ -44,6 +44,13 @@ class UsageSnapshotTrend(BaseModel):
     history: list[UsagePoint] = []
 
 
+class AccountWeeklyLimits(BaseModel):
+    """One account's own weekly-limit readings."""
+
+    account_uuid: str
+    snapshots: list[UsageSnapshotTrend]
+
+
 class AccountDailyUsage(BaseModel):
     """One account's share of a day, week or month. account_uuid is None for usage no account is known for."""
 
@@ -205,6 +212,8 @@ class OverviewData(BaseModel):
     usage_snapshots: list[UsageSnapshotTrend]
     daily_usage: list[DailyUsage]
     accounts: list[AccountLabel] = []
+    # Only filled for all accounts together: each account's weekly limit.
+    weekly_limits_by_account: list[AccountWeeklyLimits] = []
     selected_account: str | None = None
     timezone: str = "UTC"
 
