@@ -81,16 +81,6 @@ export interface UsageSnapshotTrend {
   history: UsagePoint[];
 }
 
-export interface CurrentSessionStats {
-  session_started_at: string;
-  resets_at: string;
-  pct_used: number;
-  session_tokens: number;
-  session_cost: number;
-  tokens_per_hour: number;
-  projected_exhaustion_at: string | null;
-}
-
 export interface ProjectTotal {
   project: string;
   tokens: number;
@@ -167,7 +157,6 @@ export interface AccountLabel {
 // GET /api/overview: the top of the dashboard, without the heavy tables.
 export interface OverviewData {
   usage_snapshots: UsageSnapshotTrend[];
-  current_session_stats: CurrentSessionStats | null;
   daily_usage: DailyUsage[];
   accounts: AccountLabel[];
   selected_account: string | null;

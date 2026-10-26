@@ -44,16 +44,6 @@ class UsageSnapshotTrend(BaseModel):
     history: list[UsagePoint] = []
 
 
-class CurrentSessionStats(BaseModel):
-    session_started_at: str
-    resets_at: str
-    pct_used: float
-    session_tokens: int
-    session_cost: float
-    tokens_per_hour: float
-    projected_exhaustion_at: str | None = None
-
-
 class AccountDailyUsage(BaseModel):
     """One account's share of a day, week or month. account_uuid is None for usage no account is known for."""
 
@@ -213,7 +203,6 @@ class OverviewData(BaseModel):
     the daily chart), cheap enough to show before the rest of DashboardData."""
 
     usage_snapshots: list[UsageSnapshotTrend]
-    current_session_stats: CurrentSessionStats | None = None
     daily_usage: list[DailyUsage]
     accounts: list[AccountLabel] = []
     selected_account: str | None = None

@@ -236,7 +236,6 @@ def test_a_closed_window_keeps_its_last_reading_and_projects_nothing(db, pricing
     assert trend["stale"] is True
     assert trend["pct_used"] == 61.0 == trend["captured_pct_used"]
     assert trend["rate_per_hour"] == 0.0 and trend["hours_to_limit"] is None
-    assert queries.get_current_session_stats(db, pricing) is None
 
 
 def test_an_open_window_is_not_stale_and_still_projects(db, pricing):
@@ -250,7 +249,6 @@ def test_an_open_window_is_not_stale_and_still_projects(db, pricing):
     [trend] = queries.get_usage_snapshots_trend(db)
     assert trend["stale"] is False
     assert trend["rate_per_hour"] > 0 and trend["hours_to_limit"] is not None
-    assert queries.get_current_session_stats(db, pricing) is not None
 
 
 def test_account_labels_carry_no_totals(db):

@@ -4,7 +4,6 @@
 // strings, since React renders JSX rather than innerHTML.
 import type {
   CodexRateLimitTrend,
-  CurrentSessionStats,
   Period,
   UsageSnapshotTrend,
 } from "../api/types";
@@ -98,26 +97,6 @@ export function fmtResetsAt(iso: string | null): string {
   return `${dateStr} ${timeStr}`;
 }
 
-export function localDayLabel(date: Date): string {
-  const dateStr = date.toLocaleDateString("en-CA", {
-    timeZone: displayTimeZone,
-  });
-  const todayStr = new Date().toLocaleDateString("en-CA", {
-    timeZone: displayTimeZone,
-  });
-  const yesterdayStr = new Date(Date.now() - 86_400_000).toLocaleDateString(
-    "en-CA",
-    { timeZone: displayTimeZone },
-  );
-  if (dateStr === todayStr) return "Today";
-  if (dateStr === yesterdayStr) return "Yesterday";
-  return date.toLocaleDateString("en-GB", {
-    timeZone: displayTimeZone,
-    day: "numeric",
-    month: "short",
-  });
-}
-
 export function localTime(date: Date): string {
   return date.toLocaleTimeString("en-GB", {
     timeZone: displayTimeZone,
@@ -140,14 +119,6 @@ export function fmtWeekday(date: Date): string {
     timeZone: displayTimeZone,
     weekday: "short",
   });
-}
-
-export function fmtDuration(minutesTotal: number): string {
-  const sign = minutesTotal < 0 ? "-" : "";
-  const absMinutes = Math.round(Math.abs(minutesTotal));
-  const hours = Math.floor(absMinutes / 60);
-  const minutes = absMinutes % 60;
-  return `${sign}${hours} h ${String(minutes).padStart(2, "0")} min`;
 }
 
 export type Severity = "ok" | "warn" | "danger";
@@ -302,55 +273,4 @@ export function projectionLines(snapshot: ResetProjectable): ProjectionLines {
         : marginOverrunSeverity(-marginHours);
 
   return { resetLine, exhaustionLine, severity, marginHours };
-}
-
-export interface SessionStatsView {
-  windowLabel: string;
-  tokensLabel: string;
-  burnRateLabel: string;
-  exhaustionText: string;
-  exhaustionClass: "" | "text-ok" | "text-warn" | "text-danger";
-}
-
-export function buildSessionStatsView(
-  stats: CurrentSessionStats,
-): SessionStatsView {
-  const startDate = new Date(stats.session_started_at);
-  const resetsDate = new Date(stats.resets_at);
-  const remainingMinutes = (resetsDate.getTime() - Date.now()) / 60_000;
-  const windowLabel =
-    `${localTime(startDate)} → ${localTime(resetsDate)}` +
-    ` (${remainingMinutes >= 0 ? fmtDuration(remainingMinutes) + " left" : "reset overdue"})`;
-
-  let exhaustionText = "not enough data";
-  let exhaustionClass: SessionStatsView["exhaustionClass"] = "";
-  if (stats.projected_exhaustion_at) {
-    const exhaustionDate = new Date(stats.projected_exhaustion_at);
-    const marginMinutes =
-      (exhaustionDate.getTime() - resetsDate.getTime()) / 60_000;
-    const clockLabel = `${localDayLabel(exhaustionDate)} ${localTime(exhaustionDate)}`;
-    if (marginMinutes < 0) {
-      exhaustionClass = "text-danger";
-      exhaustionText = `~${clockLabel} (before reset)`;
-    } else if (marginMinutes < 30) {
-      exhaustionClass = "text-warn";
-      exhaustionText = `~${clockLabel} (${fmtDuration(marginMinutes)} after reset)`;
-    } else {
-      exhaustionClass = "text-ok";
-      exhaustionText = `~${clockLabel} (${fmtDuration(marginMinutes)} after reset)`;
-    }
-  }
-
-  const costPerHour =
-    stats.session_tokens > 0
-      ? (stats.session_cost / stats.session_tokens) * stats.tokens_per_hour
-      : 0;
-
-  return {
-    windowLabel,
-    tokensLabel: `${fmtTokens(stats.session_tokens)} (${fmtCost(stats.session_cost)})`,
-    burnRateLabel: `${fmtTokens(stats.tokens_per_hour)} tokens/hr (${fmtCost(costPerHour)}/hr)`,
-    exhaustionText,
-    exhaustionClass,
-  };
 }

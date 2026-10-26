@@ -1,14 +1,12 @@
-import type { CurrentSessionStats, UsageSnapshotTrend } from "../api/types";
+import type { UsageSnapshotTrend } from "../api/types";
 import { visibleSnapshots } from "../lib/format";
 import { LimitRow } from "./LimitRow";
-import { SessionStats } from "./SessionStats";
 
 interface LimitsWidgetProps {
   snapshots: UsageSnapshotTrend[];
-  sessionStats: CurrentSessionStats | null;
 }
 
-export function LimitsWidget({ snapshots, sessionStats }: LimitsWidgetProps) {
+export function LimitsWidget({ snapshots }: LimitsWidgetProps) {
   const visible = visibleSnapshots(snapshots);
   if (visible.length === 0) return null;
 
@@ -25,7 +23,6 @@ export function LimitsWidget({ snapshots, sessionStats }: LimitsWidgetProps) {
           <LimitRow key={snapshot.scope} snapshot={snapshot} />
         ))}
       </div>
-      {sessionStats && <SessionStats stats={sessionStats} />}
     </div>
   );
 }
