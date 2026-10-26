@@ -59,8 +59,8 @@ def _build_payload(
     return DashboardData(
         totals=queries.get_totals(connection, pricing, account=account),
         totals_by_period=queries.get_totals_by_period(connection, pricing, account=account),
-        weekly_usage=queries.get_weekly_usage(connection, pricing, account=account),
-        monthly_usage=queries.get_monthly_usage(connection, pricing, account=account),
+        weekly_usage=queries.get_weekly_usage(connection, pricing, account=account, by_account=account is None),
+        monthly_usage=queries.get_monthly_usage(connection, pricing, account=account, by_account=account is None),
         unknown_models=queries.get_unknown_models(connection, pricing),
         selected_account=account,
         timezone=config.timezone().key,

@@ -55,7 +55,7 @@ class CurrentSessionStats(BaseModel):
 
 
 class AccountDailyUsage(BaseModel):
-    """One account's share of a day. account_uuid is None for usage no account is known for."""
+    """One account's share of a day, week or month. account_uuid is None for usage no account is known for."""
 
     account_uuid: str | None
     input_tokens: int
@@ -86,6 +86,7 @@ class WeeklyUsage(BaseModel):
     cache_read_tokens: int
     total_tokens: int
     cost: float
+    by_account: list[AccountDailyUsage] = []
 
 
 class MonthlyUsage(BaseModel):
@@ -96,6 +97,7 @@ class MonthlyUsage(BaseModel):
     cache_read_tokens: int
     total_tokens: int
     cost: float
+    by_account: list[AccountDailyUsage] = []
 
 
 class ProjectTotal(BaseModel):

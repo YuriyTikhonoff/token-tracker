@@ -1,8 +1,20 @@
-import type { MonthlyUsage } from "../api/types";
+import type { AccountLabel, MonthlyUsage } from "../api/types";
+import { BreakdownToggle, SliceLegend } from "./shared/AccountSplitControls";
+import {
+  accountSlices,
+  legendSlices,
+  sliceLines,
+  useBreakdown,
+  type Breakdown,
+  type Slice,
+} from "./shared/accountSplit";
 import { fmtCost, fmtTokens } from "../lib/format";
 
 interface MonthlyTokensChartProps {
   months: MonthlyUsage[];
+  accounts: AccountLabel[];
+  /** The account the dashboard is limited to; null for all of them. */
+  selectedAccount: string | null;
 }
 
 type TokenSegmentKey =
@@ -31,14 +43,24 @@ function monthLabel(monthStart: string): string {
   return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 }
 
-function monthTooltip(month: MonthlyUsage): string {
+function monthTooltip(month: MonthlyUsage, slices: Slice[]): string {
   return [
     `${monthLabel(month.month_start)} — ${fmtTokens(month.total_tokens)} tokens, ${fmtCost(month.cost)}`,
-    ...SEGMENTS.map(({ key, label }) => `${label}: ${fmtTokens(month[key])}`),
+    ...sliceLines(slices, fmtTokens, fmtCost),
   ].join("\n");
 }
 
-export function MonthlyTokensChart({ months }: MonthlyTokensChartProps) {
+/** The slices of one bar, bottom to top, for the chosen breakdown. */
+function slicesOf(item: MonthlyUsage, breakdown: Breakdown, accounts: AccountLabel[]): Slice[] {
+  if (breakdown === "tokens") {
+    return SEGMENTS.map(({ key, label, className }) => ({ id: key, label, className, amount: item[key] }));
+  }
+  return accountSlices(item.by_account, accounts);
+}
+
+export function MonthlyTokensChart({ months, accounts, selectedAccount }: MonthlyTokensChartProps) {
+  const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
+  const legend = legendSlices(months.map((month) => slicesOf(month, breakdown, accounts)));
   const maxTotal = Math.max(1, ...months.map((month) => month.total_tokens));
 
   return (
@@ -47,22 +69,15 @@ export function MonthlyTokensChart({ months }: MonthlyTokensChartProps) {
         <div className="text-[0.85rem] text-[#8a8f98]">
           Monthly tokens (last {months.length} months)
         </div>
-        <div className="flex gap-4">
-          {SEGMENTS.map(({ key, label, className }) => (
-            <div
-              className="flex items-center gap-[0.4rem] text-[0.75rem] text-[#8a8f98]"
-              key={key}
-            >
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-[2px] ${className}`}
-              />
-              {label}
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+          {canSplit && <BreakdownToggle value={breakdown} onChange={setBreakdown} />}
+          <SliceLegend slices={legend} />
         </div>
       </div>
       <div className="flex h-[210px] items-end gap-3">
-        {months.map((month) => (
+        {months.map((month) => {
+          const slices = slicesOf(month, breakdown, accounts);
+          return (
           <div
             className="flex h-full min-w-0 flex-1 items-end"
             key={month.month_start}
@@ -76,19 +91,20 @@ export function MonthlyTokensChart({ months }: MonthlyTokensChartProps) {
               </div>
               <div
                 className="flex min-h-[2px] w-full flex-1 flex-col-reverse overflow-hidden rounded-[3px]"
-                title={monthTooltip(month)}
+                title={monthTooltip(month, slices)}
               >
-                {SEGMENTS.map(({ key, className }) => (
+                {slices.map(({ id, className, color, amount }) => (
                   <div
-                    key={key}
-                    className={`w-full ${className}`}
-                    style={{ flex: month[key] || 0.0001 }}
+                    key={id}
+                    className={`w-full ${className ?? ""}`}
+                    style={{ flex: amount || 0.0001, ...(color ? { backgroundColor: color } : {}) }}
                   />
                 ))}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       <div className="mt-2 flex gap-3">
         {months.map((month) => (

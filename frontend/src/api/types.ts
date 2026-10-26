@@ -47,6 +47,7 @@ export interface WeeklyUsage {
   cache_read_tokens: number;
   total_tokens: number;
   cost: number;
+  by_account?: AccountDailyUsage[];
 }
 
 export interface MonthlyUsage {
@@ -57,6 +58,7 @@ export interface MonthlyUsage {
   cache_read_tokens: number;
   total_tokens: number;
   cost: number;
+  by_account?: AccountDailyUsage[];
 }
 
 export interface UsagePoint {

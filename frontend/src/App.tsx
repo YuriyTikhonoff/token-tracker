@@ -82,8 +82,14 @@ function App() {
               activePeriod={activePeriod}
               onPeriodChange={setActivePeriod}
               weeks={data.weekly_usage}
+              accounts={overview?.accounts ?? []}
+              selectedAccount={selectedAccount}
             />
-            <MonthlyTokensChart months={data.monthly_usage} />
+            <MonthlyTokensChart
+              months={data.monthly_usage}
+              accounts={overview?.accounts ?? []}
+              selectedAccount={selectedAccount}
+            />
           </div>
           <PromptLogTable account={selectedAccount} />
           <ByProjectTable account={selectedAccount} />

@@ -138,105 +138,82 @@ def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params,
     ).fetchall()
 
 
-def get_daily_usage(connection, pricing, days=10, account=None, by_account=False):
-    """Per-day token/cost totals for the trailing `days` local days
-    (oldest first, today last), zero-filled for days with no usage. With
-    `by_account`, each day also carries `by_account`: the same numbers per
-    account (rows with no known account under account_uuid None), for the
-    accounts that had usage that day."""
-    now_local = datetime.now(LOCAL_TZ)
-    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_starts_local = [start_of_today_local - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+def _empty_totals():
+    return {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "total_tokens": 0,
+        "cost": 0.0,
+    }
 
-    earliest_utc_iso = day_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
+
+def _add_totals(bucket, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost):
+    bucket["input_tokens"] += input_tokens
+    bucket["output_tokens"] += output_tokens
+    bucket["cache_creation_tokens"] += cache_creation_tokens
+    bucket["cache_read_tokens"] += cache_read_tokens
+    bucket["total_tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
+    bucket["cost"] += cost
+
+
+def _usage_per_period(connection, pricing, starts_local, key_name, period_start, account, by_account):
+    """Token/cost totals for consecutive local periods (oldest first, zero-filled),
+    shared by the daily, weekly and monthly charts. `period_start` maps a local
+    datetime to the start of the period it falls in; each result is keyed by
+    `key_name` (its start date). With `by_account`, each period also carries
+    `by_account`: the same numbers per account that had usage in it (rows with
+    no known account under account_uuid None)."""
+    earliest_utc_iso = starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
     rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params, by_account)
 
-    def empty_totals():
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-            "total_tokens": 0,
-            "cost": 0.0,
-        }
-
-    def add(bucket, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost):
-        bucket["input_tokens"] += input_tokens
-        bucket["output_tokens"] += output_tokens
-        bucket["cache_creation_tokens"] += cache_creation_tokens
-        bucket["cache_read_tokens"] += cache_read_tokens
-        bucket["total_tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
-        bucket["cost"] += cost
-
-    by_date = {day_start.strftime("%Y-%m-%d"): {"date": day_start.strftime("%Y-%m-%d"), **empty_totals()} for day_start in day_starts_local}
-    per_account = {date: {} for date in by_date}
+    periods = {start.strftime("%Y-%m-%d"): {key_name: start.strftime("%Y-%m-%d"), **_empty_totals()} for start in starts_local}
+    per_account = {key: {} for key in periods}
 
     for timestamp, model, *amounts in rows:
         account_uuid = amounts.pop() if by_account else None
-        local_date = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
-        bucket = by_date.get(local_date)
+        key = period_start(_parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)).strftime("%Y-%m-%d")
+        bucket = periods.get(key)
         if bucket is None:
             continue
         cost = cost_for_row(pricing, model, *amounts)
-        add(bucket, *amounts, cost)
+        _add_totals(bucket, *amounts, cost)
         if by_account:
-            add(per_account[local_date].setdefault(account_uuid, empty_totals()), *amounts, cost)
+            _add_totals(per_account[key].setdefault(account_uuid, _empty_totals()), *amounts, cost)
 
     if by_account:
-        for date, bucket in by_date.items():
-            bucket["by_account"] = [
-                {"account_uuid": account_uuid, **totals} for account_uuid, totals in per_account[date].items()
-            ]
+        for key, bucket in periods.items():
+            bucket["by_account"] = [{"account_uuid": uuid, **totals} for uuid, totals in per_account[key].items()]
 
-    return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_local]
+    return [periods[start.strftime("%Y-%m-%d")] for start in starts_local]
 
 
-def get_weekly_usage(connection, pricing, weeks=8, account=None):
+def _start_of_day(local_dt):
+    return local_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def get_daily_usage(connection, pricing, days=10, account=None, by_account=False):
+    """Per-day token/cost totals for the trailing `days` local days
+    (oldest first, today last), zero-filled for days with no usage. See
+    _usage_per_period for `by_account`."""
+    start_of_today_local = _start_of_day(datetime.now(LOCAL_TZ))
+    day_starts_local = [start_of_today_local - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+    return _usage_per_period(connection, pricing, day_starts_local, "date", _start_of_day, account, by_account)
+
+
+def _start_of_week(local_dt):
+    return _start_of_day(local_dt - timedelta(days=local_dt.weekday()))
+
+
+def get_weekly_usage(connection, pricing, weeks=8, account=None, by_account=False):
     """Per-week token/cost totals for the trailing `weeks` local weeks
     (Monday-start, oldest first, current week last), zero-filled for weeks
-    with no usage."""
-    now_local = datetime.now(LOCAL_TZ)
-    start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_this_week_local = start_of_today_local - timedelta(days=start_of_today_local.weekday())
+    with no usage. See _usage_per_period for `by_account`."""
+    start_of_this_week_local = _start_of_week(datetime.now(LOCAL_TZ))
     week_starts_local = [start_of_this_week_local - timedelta(weeks=offset) for offset in range(weeks - 1, -1, -1)]
-
-    earliest_utc_iso = week_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
-    account_sql, account_params = _account_clause(account)
-    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
-
-    by_week = {
-        week_start.strftime("%Y-%m-%d"): {
-            "week_start": week_start.strftime("%Y-%m-%d"),
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-            "total_tokens": 0,
-            "cost": 0.0,
-        }
-        for week_start in week_starts_local
-    }
-
-    for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_dt = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)
-        local_week_start = (local_dt - timedelta(days=local_dt.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        bucket = by_week.get(local_week_start.strftime("%Y-%m-%d"))
-        if bucket is None:
-            continue
-        bucket["input_tokens"] += input_tokens
-        bucket["output_tokens"] += output_tokens
-        bucket["cache_creation_tokens"] += cache_creation_tokens
-        bucket["cache_read_tokens"] += cache_read_tokens
-        bucket["total_tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
-        bucket["cost"] += cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
-        )
-
-    return [by_week[week_start.strftime("%Y-%m-%d")] for week_start in week_starts_local]
+    return _usage_per_period(connection, pricing, week_starts_local, "week_start", _start_of_week, account, by_account)
 
 
 def _months_before(month_start_local, count):
@@ -247,51 +224,17 @@ def _months_before(month_start_local, count):
     return month_start_local.replace(year=year, month=month)
 
 
-def get_monthly_usage(connection, pricing, months=8, account=None):
+def _start_of_month(local_dt):
+    return local_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def get_monthly_usage(connection, pricing, months=8, account=None, by_account=False):
     """Per-month token/cost totals for the trailing `months` local
     calendar months (oldest first, current month last), zero-filled for
-    months with no usage."""
-    now_local = datetime.now(LOCAL_TZ)
-    start_of_this_month_local = now_local.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
-    month_starts_local = [
-        _months_before(start_of_this_month_local, offset) for offset in range(months - 1, -1, -1)
-    ]
-
-    earliest_utc_iso = month_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
-    account_sql, account_params = _account_clause(account)
-    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
-
-    by_month = {
-        month_start.strftime("%Y-%m-%d"): {
-            "month_start": month_start.strftime("%Y-%m-%d"),
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-            "total_tokens": 0,
-            "cost": 0.0,
-        }
-        for month_start in month_starts_local
-    }
-
-    for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_dt = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)
-        local_month_start = local_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        bucket = by_month.get(local_month_start.strftime("%Y-%m-%d"))
-        if bucket is None:
-            continue
-        bucket["input_tokens"] += input_tokens
-        bucket["output_tokens"] += output_tokens
-        bucket["cache_creation_tokens"] += cache_creation_tokens
-        bucket["cache_read_tokens"] += cache_read_tokens
-        bucket["total_tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
-        bucket["cost"] += cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
-        )
-
-    return [by_month[month_start.strftime("%Y-%m-%d")] for month_start in month_starts_local]
+    months with no usage. See _usage_per_period for `by_account`."""
+    start_of_this_month_local = _start_of_month(datetime.now(LOCAL_TZ))
+    month_starts_local = [_months_before(start_of_this_month_local, offset) for offset in range(months - 1, -1, -1)]
+    return _usage_per_period(connection, pricing, month_starts_local, "month_start", _start_of_month, account, by_account)
 
 
 def _parse_utc_iso(iso_timestamp):

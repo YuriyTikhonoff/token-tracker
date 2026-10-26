@@ -149,6 +149,21 @@ def test_daily_usage_splits_a_day_by_account_only_when_asked(db, pricing):
     assert yesterday["by_account"] == []
 
 
+def test_weekly_and_monthly_usage_split_by_account_only_when_asked(db, pricing):
+    now = _iso(datetime.now(queries.LOCAL_TZ).replace(hour=12, minute=0, second=0, microsecond=0))
+    for uuid, account, tokens in (("a1", "me", 1_000_000), ("a2", "guest", 3_000_000)):
+        _usage(db, uuid, now, inp=tokens, out=0, cc=0, cr=0)
+        db.execute("UPDATE usage SET account_uuid = ? WHERE assistant_uuid = ?", (account, uuid))
+
+    for fetch in (queries.get_weekly_usage, queries.get_monthly_usage):
+        plain = fetch(db, pricing, 2)[-1]
+        split = fetch(db, pricing, 2, by_account=True)[-1]
+        assert "by_account" not in plain
+        assert {a["account_uuid"]: a["input_tokens"] for a in split["by_account"]} == {"me": 1_000_000, "guest": 3_000_000}
+        assert sum(a["cost"] for a in split["by_account"]) == pytest.approx(split["cost"])
+        assert split["total_tokens"] == plain["total_tokens"]
+
+
 def test_limit_snapshots_are_kept_per_account(db):
     for account, pct in (("me", 10.0), ("guest", 90.0)):
         db.execute(

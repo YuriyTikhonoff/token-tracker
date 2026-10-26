@@ -1,6 +1,14 @@
-import { useState } from "react";
 import type { AccountDailyUsage, AccountLabel, DailyUsage } from "../api/types";
 import { fmtCost, fmtCostPerMillion, fmtTokens } from "../lib/format";
+import { BreakdownToggle, SliceLegend } from "./shared/AccountSplitControls";
+import {
+  accountSlices,
+  legendSlices,
+  sliceLines,
+  useBreakdown,
+  type Breakdown,
+  type Slice,
+} from "./shared/accountSplit";
 
 interface DailyTokensChartProps {
   days: DailyUsage[];
@@ -8,23 +16,6 @@ interface DailyTokensChartProps {
   /** The account the dashboard is limited to; null for all of them. */
   selectedAccount: string | null;
 }
-
-type Breakdown = "tokens" | "accounts";
-
-/** One coloured slice of a bar, whatever the bar is split by. */
-interface Slice {
-  id: string;
-  label: string;
-  /** Tailwind class or, for accounts, a CSS colour. */
-  className?: string;
-  color?: string;
-  amount: number;
-  cost?: number;
-}
-
-const ACCOUNT_COLORS = ["#2dd4bf", "#f472b6", "#fbbf24", "#38bdf8", "#a3e635", "#fb923c"];
-const UNKNOWN_COLOR = "#6b7280";
-const UNKNOWN_ID = "__unknown__";
 
 type TokenSegmentKey =
   | "input_tokens"
@@ -53,14 +44,7 @@ function dayLabel(dateStr: string): string {
 }
 
 function dayTooltip(day: DailyUsage, label: string, slices: Slice[]): string {
-  return [
-    `${label} — ${fmtTokens(day.total_tokens)} tokens`,
-    ...slices.map((slice) =>
-      slice.cost === undefined
-        ? `${slice.label}: ${fmtTokens(slice.amount)}`
-        : `${slice.label}: ${fmtTokens(slice.amount)} · ${fmtCost(slice.cost)}`,
-    ),
-  ].join("\n");
+  return [`${label} — ${fmtTokens(day.total_tokens)} tokens`, ...sliceLines(slices, fmtTokens, fmtCost)].join("\n");
 }
 
 const AVG_KEY = "__avg__";
@@ -130,42 +114,15 @@ function slicesOf(day: DailyUsage, breakdown: Breakdown, accounts: AccountLabel[
   if (breakdown === "tokens") {
     return SEGMENTS.map(({ key, label, className }) => ({ id: key, label, className, amount: day[key] }));
   }
-  const parts = day.by_account ?? [];
-  const slices: Slice[] = accounts.map((account, index) => {
-    const part = parts.find((p) => p.account_uuid === account.account_uuid);
-    return {
-      id: account.account_uuid,
-      label: account.label,
-      color: ACCOUNT_COLORS[index % ACCOUNT_COLORS.length],
-      amount: part?.total_tokens ?? 0,
-      cost: part?.cost ?? 0,
-    };
-  });
-  const known = new Set(accounts.map((a) => a.account_uuid));
-  const rest = parts.filter((p) => p.account_uuid === null || !known.has(p.account_uuid));
-  if (rest.length > 0) {
-    slices.push({
-      id: UNKNOWN_ID,
-      label: "Unknown",
-      color: UNKNOWN_COLOR,
-      amount: rest.reduce((sum, p) => sum + p.total_tokens, 0),
-      cost: rest.reduce((sum, p) => sum + p.cost, 0),
-    });
-  }
-  return slices;
+  return accountSlices(day.by_account, accounts);
 }
 
 export function DailyTokensChart({ days, accounts, selectedAccount }: DailyTokensChartProps) {
-  const [chosen, setChosen] = useState<Breakdown>("tokens");
-  // One account selected: the chart is that account's alone, so there is nothing to split by.
-  const canSplit = selectedAccount === null && accounts.length > 1;
-  const breakdown: Breakdown = canSplit ? chosen : "tokens";
+  const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
   const avgDay = averageOfCompletedDays(days);
   const bars = avgDay ? [avgDay, ...days] : days;
   const maxTotal = Math.max(1, ...bars.map((day) => day.total_tokens));
-  const legend = slicesOf(bars[bars.length - 1] ?? days[0], breakdown, accounts).filter(
-    (slice) => breakdown === "tokens" || bars.some((day) => slicesOf(day, breakdown, accounts).some((s) => s.id === slice.id && s.amount > 0)),
-  );
+  const legend = legendSlices(bars.map((day) => slicesOf(day, breakdown, accounts)));
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
@@ -174,33 +131,8 @@ export function DailyTokensChart({ days, accounts, selectedAccount }: DailyToken
           Daily tokens (last {days.length} days)
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-          {canSplit && (
-            <div className="flex overflow-hidden rounded-md border border-[#262b36] text-[0.7rem]" role="group" aria-label="Split bars by">
-              {(["tokens", "accounts"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={breakdown === option}
-                  onClick={() => setChosen(option)}
-                  className={`cursor-pointer px-2 py-0.5 ${breakdown === option ? "bg-white/10 text-[#e4e6eb]" : "text-[#8a8f98] hover:text-[#c7cbd4]"}`}
-                >
-                  {option === "tokens" ? "Token type" : "Account"}
-                </button>
-              ))}
-            </div>
-          )}
-          {legend.map(({ id, label, className, color }) => (
-            <div
-              className="flex items-center gap-[0.4rem] text-[0.75rem] text-[#8a8f98]"
-              key={id}
-            >
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-[2px] ${className ?? ""}`}
-                style={color ? { backgroundColor: color } : undefined}
-              />
-              {label}
-            </div>
-          ))}
+          {canSplit && <BreakdownToggle value={breakdown} onChange={setBreakdown} />}
+          <SliceLegend slices={legend} />
         </div>
       </div>
       <div className="relative flex h-[210px] items-end gap-3">
