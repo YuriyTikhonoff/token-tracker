@@ -3,11 +3,11 @@ import { BreakdownToggle, SliceLegend } from "./shared/AccountSplitControls";
 import {
   accountSlices,
   legendSlices,
-  sliceLines,
   useBreakdown,
   type Breakdown,
   type Slice,
 } from "./shared/accountSplit";
+import { useBarTip } from "./shared/barTip";
 import { fmtCost, fmtTokens } from "../lib/format";
 
 interface MonthlyTokensChartProps {
@@ -43,11 +43,8 @@ function monthLabel(monthStart: string): string {
   return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 }
 
-function monthTooltip(month: MonthlyUsage, slices: Slice[]): string {
-  return [
-    `${monthLabel(month.month_start)} — ${fmtTokens(month.total_tokens)} tokens, ${fmtCost(month.cost)}`,
-    ...sliceLines(slices, fmtTokens, fmtCost),
-  ].join("\n");
+function monthHeading(month: MonthlyUsage): string {
+  return `${monthLabel(month.month_start)} — ${fmtTokens(month.total_tokens)} tokens, ${fmtCost(month.cost)}`;
 }
 
 /** The slices of one bar, bottom to top, for the chosen breakdown. */
@@ -60,11 +57,13 @@ function slicesOf(item: MonthlyUsage, breakdown: Breakdown, accounts: AccountLab
 
 export function MonthlyTokensChart({ months, accounts, selectedAccount }: MonthlyTokensChartProps) {
   const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
+  const { bind, node } = useBarTip();
   const legend = legendSlices(months.map((month) => slicesOf(month, breakdown, accounts)));
   const maxTotal = Math.max(1, ...months.map((month) => month.total_tokens));
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
+      {node}
       <div className="mb-4 flex items-center justify-between">
         <div className="text-[0.85rem] text-[#8a8f98]">
           Monthly tokens (last {months.length} months)
@@ -91,7 +90,7 @@ export function MonthlyTokensChart({ months, accounts, selectedAccount }: Monthl
               </div>
               <div
                 className="flex min-h-[2px] w-full flex-1 flex-col-reverse overflow-hidden rounded-[3px]"
-                title={monthTooltip(month, slices)}
+                {...bind(monthHeading(month), slices)}
               >
                 {slices.map(({ id, className, color, amount }) => (
                   <div

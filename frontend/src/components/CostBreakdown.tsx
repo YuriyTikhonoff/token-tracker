@@ -4,11 +4,11 @@ import { BreakdownToggle, SliceLegend } from "./shared/AccountSplitControls";
 import {
   accountSlices,
   legendSlices,
-  sliceLines,
   useBreakdown,
   type Breakdown,
   type Slice,
 } from "./shared/accountSplit";
+import { useBarTip } from "./shared/barTip";
 
 interface CostBreakdownProps {
   totals: Totals;
@@ -63,11 +63,8 @@ function weekRangeLabel(weekStart: string): string {
   return `${startLabel}–${endLabel}`;
 }
 
-function weekTooltip(week: WeeklyUsage, slices: Slice[]): string {
-  return [
-    `Week of ${weekRangeLabel(week.week_start)} — ${fmtTokens(week.total_tokens)} tokens, ${fmtCost(week.cost)}`,
-    ...sliceLines(slices, fmtTokens, fmtCost),
-  ].join("\n");
+function weekHeading(week: WeeklyUsage): string {
+  return `Week of ${weekRangeLabel(week.week_start)} — ${fmtTokens(week.total_tokens)} tokens, ${fmtCost(week.cost)}`;
 }
 
 /** The slices of one bar, bottom to top, for the chosen breakdown. */
@@ -87,11 +84,13 @@ export function CostBreakdown({
   selectedAccount,
 }: CostBreakdownProps) {
   const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
+  const { bind, node } = useBarTip();
   const legend = legendSlices(weeks.map((week) => slicesOf(week, breakdown, accounts)));
   const maxTotal = Math.max(1, ...weeks.map((week) => week.total_tokens));
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
+      {node}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="text-[0.85rem] whitespace-nowrap text-[#8a8f98]">
           Estimated cost ({PERIOD_LABELS[activePeriod]}):{" "}
@@ -140,7 +139,7 @@ export function CostBreakdown({
               </div>
               <div
                 className="flex min-h-[2px] w-full flex-1 flex-col-reverse overflow-hidden rounded-[3px]"
-                title={weekTooltip(week, slices)}
+                {...bind(weekHeading(week), slices)}
               >
                 {slices.map(({ id, className, color, amount }) => (
                   <div

@@ -4,11 +4,11 @@ import { BreakdownToggle, SliceLegend } from "./shared/AccountSplitControls";
 import {
   accountSlices,
   legendSlices,
-  sliceLines,
   useBreakdown,
   type Breakdown,
   type Slice,
 } from "./shared/accountSplit";
+import { useBarTip } from "./shared/barTip";
 
 interface DailyTokensChartProps {
   days: DailyUsage[];
@@ -43,8 +43,8 @@ function dayLabel(dateStr: string): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function dayTooltip(day: DailyUsage, label: string, slices: Slice[]): string {
-  return [`${label} — ${fmtTokens(day.total_tokens)} tokens`, ...sliceLines(slices, fmtTokens, fmtCost)].join("\n");
+function dayHeading(day: DailyUsage, label: string): string {
+  return `${label} — ${fmtTokens(day.total_tokens)} tokens`;
 }
 
 const AVG_KEY = "__avg__";
@@ -119,6 +119,7 @@ function slicesOf(day: DailyUsage, breakdown: Breakdown, accounts: AccountLabel[
 
 export function DailyTokensChart({ days, accounts, selectedAccount }: DailyTokensChartProps) {
   const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
+  const { bind, node } = useBarTip();
   const avgDay = averageOfCompletedDays(days);
   const bars = avgDay ? [avgDay, ...days] : days;
   const maxTotal = Math.max(1, ...bars.map((day) => day.total_tokens));
@@ -126,6 +127,7 @@ export function DailyTokensChart({ days, accounts, selectedAccount }: DailyToken
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
+      {node}
       <div className="mb-4 flex items-center justify-between">
         <div className="text-[0.85rem] text-[#8a8f98]">
           Daily tokens (last {days.length} days)
@@ -159,7 +161,7 @@ export function DailyTokensChart({ days, accounts, selectedAccount }: DailyToken
                 </div>
                 <div
                   className={`flex min-h-[2px] w-full flex-1 flex-col-reverse overflow-hidden rounded-[3px] ${isAvg ? "bg-white/[0.06]" : ""}`}
-                  title={dayTooltip(day, isAvg ? "Avg (last 9 days)" : dayLabel(day.date), slices)}
+                  {...bind(dayHeading(day, isAvg ? "Avg (last 9 days)" : dayLabel(day.date)), slices)}
                 >
                   {slices.map(({ id, className, color, amount }) => (
                     <div

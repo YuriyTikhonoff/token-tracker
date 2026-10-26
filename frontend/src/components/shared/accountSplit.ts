@@ -51,13 +51,19 @@ export function accountSlices(parts: AccountDailyUsage[] | undefined, accounts: 
   return slices;
 }
 
-/** Tooltip lines for a bar's slices: tokens, and cost when the slice has one. */
+export function shareLabel(amount: number, total: number): string {
+  if (total <= 0 || amount <= 0) return "0%";
+  const pct = (amount / total) * 100;
+  return pct < 1 ? "<1%" : `${Math.round(pct)}%`;
+}
+
+/** Tooltip lines for a bar's slices: tokens, share of the bar, and cost when the slice has one. */
 export function sliceLines(slices: Slice[], fmtTokens: (n: number) => string, fmtCost: (n: number) => string): string[] {
-  return slices.map((slice) =>
-    slice.cost === undefined
-      ? `${slice.label}: ${fmtTokens(slice.amount)}`
-      : `${slice.label}: ${fmtTokens(slice.amount)} · ${fmtCost(slice.cost)}`,
-  );
+  const total = slices.reduce((sum, slice) => sum + slice.amount, 0);
+  return slices.map((slice) => {
+    const line = `${slice.label}: ${fmtTokens(slice.amount)} (${shareLabel(slice.amount, total)})`;
+    return slice.cost === undefined ? line : `${line} · ${fmtCost(slice.cost)}`;
+  });
 }
 
 /**
