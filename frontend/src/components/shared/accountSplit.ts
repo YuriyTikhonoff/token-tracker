@@ -65,7 +65,7 @@ export function sliceLines(slices: Slice[], fmtTokens: (n: number) => string, fm
  * view with more than one account; with one account selected the chart stays as it is.
  */
 export function useBreakdown(selectedAccount: string | null, accounts: AccountLabel[]) {
-  const [chosen, setChosen] = useState<Breakdown>("tokens");
+  const [chosen, setChosen] = useState<Breakdown>("accounts");
   const canSplit = selectedAccount === null && accounts.length > 1;
   return { breakdown: canSplit ? chosen : "tokens", canSplit, setBreakdown: setChosen } as const;
 }
