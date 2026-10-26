@@ -120,35 +120,40 @@ def get_today_and_week_totals(connection, pricing, account=None):
     }
 
 
-def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params):
+def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params, by_account=False):
     """Usage since `earliest_utc_iso`, summed per model and per 15-minute UTC
     bucket, as (bucket_start_iso, model, input, output, cache_creation,
     cache_read). The charts need local days, weeks and months, so the time zone
     is applied in Python, but to a few thousand buckets instead of every row.
     Every time zone's offset is a multiple of 15 minutes, so a bucket never
-    straddles a local midnight."""
+    straddles a local midnight. With `by_account`, each row also ends with the
+    account (None for rows no account is known for) and buckets are kept apart
+    per account."""
+    account_column = ", account_uuid" if by_account else ""
     return connection.execute(
         "SELECT substr(timestamp, 1, 14) || printf('%02d', substr(timestamp, 15, 2) / 15 * 15) || ':00Z' AS bucket, "
-        "model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), SUM(cache_read_tokens) "
-        "FROM usage WHERE timestamp >= ?" + account_sql + " GROUP BY bucket, model",
+        "model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), SUM(cache_read_tokens)"
+        + account_column + " FROM usage WHERE timestamp >= ?" + account_sql + " GROUP BY bucket, model" + account_column,
         (earliest_utc_iso, *account_params),
     ).fetchall()
 
 
-def get_daily_usage(connection, pricing, days=10, account=None):
+def get_daily_usage(connection, pricing, days=10, account=None, by_account=False):
     """Per-day token/cost totals for the trailing `days` local days
-    (oldest first, today last), zero-filled for days with no usage."""
+    (oldest first, today last), zero-filled for days with no usage. With
+    `by_account`, each day also carries `by_account`: the same numbers per
+    account (rows with no known account under account_uuid None), for the
+    accounts that had usage that day."""
     now_local = datetime.now(LOCAL_TZ)
     start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
     day_starts_local = [start_of_today_local - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
 
     earliest_utc_iso = day_starts_local[0].astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S")
     account_sql, account_params = _account_clause(account)
-    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params)
+    rows = _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params, by_account)
 
-    by_date = {
-        day_start.strftime("%Y-%m-%d"): {
-            "date": day_start.strftime("%Y-%m-%d"),
+    def empty_totals():
+        return {
             "input_tokens": 0,
             "output_tokens": 0,
             "cache_creation_tokens": 0,
@@ -156,22 +161,34 @@ def get_daily_usage(connection, pricing, days=10, account=None):
             "total_tokens": 0,
             "cost": 0.0,
         }
-        for day_start in day_starts_local
-    }
 
-    for timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
-        local_date = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
-        bucket = by_date.get(local_date)
-        if bucket is None:
-            continue
+    def add(bucket, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost):
         bucket["input_tokens"] += input_tokens
         bucket["output_tokens"] += output_tokens
         bucket["cache_creation_tokens"] += cache_creation_tokens
         bucket["cache_read_tokens"] += cache_read_tokens
         bucket["total_tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
-        bucket["cost"] += cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
-        )
+        bucket["cost"] += cost
+
+    by_date = {day_start.strftime("%Y-%m-%d"): {"date": day_start.strftime("%Y-%m-%d"), **empty_totals()} for day_start in day_starts_local}
+    per_account = {date: {} for date in by_date}
+
+    for timestamp, model, *amounts in rows:
+        account_uuid = amounts.pop() if by_account else None
+        local_date = _parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ).strftime("%Y-%m-%d")
+        bucket = by_date.get(local_date)
+        if bucket is None:
+            continue
+        cost = cost_for_row(pricing, model, *amounts)
+        add(bucket, *amounts, cost)
+        if by_account:
+            add(per_account[local_date].setdefault(account_uuid, empty_totals()), *amounts, cost)
+
+    if by_account:
+        for date, bucket in by_date.items():
+            bucket["by_account"] = [
+                {"account_uuid": account_uuid, **totals} for account_uuid, totals in per_account[date].items()
+            ]
 
     return [by_date[day_start.strftime("%Y-%m-%d")] for day_start in day_starts_local]
 

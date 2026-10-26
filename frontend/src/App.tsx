@@ -59,7 +59,11 @@ function App() {
               snapshots={overview.usage_snapshots}
               sessionStats={overview.current_session_stats}
             />
-            <DailyTokensChart days={overview.daily_usage} />
+            <DailyTokensChart
+              days={overview.daily_usage}
+              accounts={overview.accounts}
+              selectedAccount={selectedAccount}
+            />
           </div>
           <LimitPaceCharts snapshots={overview.usage_snapshots} />
         </>

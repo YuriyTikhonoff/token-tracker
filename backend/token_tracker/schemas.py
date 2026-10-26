@@ -54,6 +54,18 @@ class CurrentSessionStats(BaseModel):
     projected_exhaustion_at: str | None = None
 
 
+class AccountDailyUsage(BaseModel):
+    """One account's share of a day. account_uuid is None for usage no account is known for."""
+
+    account_uuid: str | None
+    input_tokens: int
+    output_tokens: int
+    cache_creation_tokens: int
+    cache_read_tokens: int
+    total_tokens: int
+    cost: float
+
+
 class DailyUsage(BaseModel):
     date: str
     input_tokens: int
@@ -62,6 +74,8 @@ class DailyUsage(BaseModel):
     cache_read_tokens: int
     total_tokens: int
     cost: float
+    # Only filled when the daily chart is not limited to one account.
+    by_account: list[AccountDailyUsage] = []
 
 
 class WeeklyUsage(BaseModel):

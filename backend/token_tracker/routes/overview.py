@@ -33,7 +33,7 @@ def get_overview(
     return OverviewData(
         usage_snapshots=queries.get_usage_snapshots_trend(connection, account=account),
         current_session_stats=queries.get_current_session_stats(connection, pricing, account=account),
-        daily_usage=queries.get_daily_usage(connection, pricing, account=account),
+        daily_usage=queries.get_daily_usage(connection, pricing, account=account, by_account=account is None),
         accounts=queries.get_account_labels(connection),
         selected_account=account,
         timezone=timezone,

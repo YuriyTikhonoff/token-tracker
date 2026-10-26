@@ -1,9 +1,30 @@
-import type { DailyUsage } from "../api/types";
+import { useState } from "react";
+import type { AccountDailyUsage, AccountLabel, DailyUsage } from "../api/types";
 import { fmtCost, fmtCostPerMillion, fmtTokens } from "../lib/format";
 
 interface DailyTokensChartProps {
   days: DailyUsage[];
+  accounts: AccountLabel[];
+  /** The account the dashboard is limited to; null for all of them. */
+  selectedAccount: string | null;
 }
+
+type Breakdown = "tokens" | "accounts";
+
+/** One coloured slice of a bar, whatever the bar is split by. */
+interface Slice {
+  id: string;
+  label: string;
+  /** Tailwind class or, for accounts, a CSS colour. */
+  className?: string;
+  color?: string;
+  amount: number;
+  cost?: number;
+}
+
+const ACCOUNT_COLORS = ["#2dd4bf", "#f472b6", "#fbbf24", "#38bdf8", "#a3e635", "#fb923c"];
+const UNKNOWN_COLOR = "#6b7280";
+const UNKNOWN_ID = "__unknown__";
 
 type TokenSegmentKey =
   | "input_tokens"
@@ -31,10 +52,14 @@ function dayLabel(dateStr: string): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function dayTooltip(day: DailyUsage, label: string): string {
+function dayTooltip(day: DailyUsage, label: string, slices: Slice[]): string {
   return [
     `${label} — ${fmtTokens(day.total_tokens)} tokens`,
-    ...SEGMENTS.map(({ key, label: segLabel }) => `${segLabel}: ${fmtTokens(day[key])}`),
+    ...slices.map((slice) =>
+      slice.cost === undefined
+        ? `${slice.label}: ${fmtTokens(slice.amount)}`
+        : `${slice.label}: ${fmtTokens(slice.amount)} · ${fmtCost(slice.cost)}`,
+    ),
   ].join("\n");
 }
 
@@ -66,7 +91,30 @@ function averageOfCompletedDays(days: DailyUsage[]): DailyUsage | null {
   );
   const n = completed.length;
 
+  const perAccount = new Map<string | null, AccountDailyUsage>();
+  for (const day of completed) {
+    for (const part of day.by_account ?? []) {
+      const sum = perAccount.get(part.account_uuid) ?? { ...part, input_tokens: 0, output_tokens: 0, cache_creation_tokens: 0, cache_read_tokens: 0, total_tokens: 0, cost: 0 };
+      sum.input_tokens += part.input_tokens;
+      sum.output_tokens += part.output_tokens;
+      sum.cache_creation_tokens += part.cache_creation_tokens;
+      sum.cache_read_tokens += part.cache_read_tokens;
+      sum.total_tokens += part.total_tokens;
+      sum.cost += part.cost;
+      perAccount.set(part.account_uuid, sum);
+    }
+  }
+
   return {
+    by_account: [...perAccount.values()].map((part) => ({
+      account_uuid: part.account_uuid,
+      input_tokens: part.input_tokens / n,
+      output_tokens: part.output_tokens / n,
+      cache_creation_tokens: part.cache_creation_tokens / n,
+      cache_read_tokens: part.cache_read_tokens / n,
+      total_tokens: part.total_tokens / n,
+      cost: part.cost / n,
+    })),
     date: AVG_KEY,
     input_tokens: sums.input_tokens / n,
     output_tokens: sums.output_tokens / n,
@@ -77,10 +125,47 @@ function averageOfCompletedDays(days: DailyUsage[]): DailyUsage | null {
   };
 }
 
-export function DailyTokensChart({ days }: DailyTokensChartProps) {
+/** The slices of one bar, bottom to top, for the chosen breakdown. */
+function slicesOf(day: DailyUsage, breakdown: Breakdown, accounts: AccountLabel[]): Slice[] {
+  if (breakdown === "tokens") {
+    return SEGMENTS.map(({ key, label, className }) => ({ id: key, label, className, amount: day[key] }));
+  }
+  const parts = day.by_account ?? [];
+  const slices: Slice[] = accounts.map((account, index) => {
+    const part = parts.find((p) => p.account_uuid === account.account_uuid);
+    return {
+      id: account.account_uuid,
+      label: account.label,
+      color: ACCOUNT_COLORS[index % ACCOUNT_COLORS.length],
+      amount: part?.total_tokens ?? 0,
+      cost: part?.cost ?? 0,
+    };
+  });
+  const known = new Set(accounts.map((a) => a.account_uuid));
+  const rest = parts.filter((p) => p.account_uuid === null || !known.has(p.account_uuid));
+  if (rest.length > 0) {
+    slices.push({
+      id: UNKNOWN_ID,
+      label: "Unknown",
+      color: UNKNOWN_COLOR,
+      amount: rest.reduce((sum, p) => sum + p.total_tokens, 0),
+      cost: rest.reduce((sum, p) => sum + p.cost, 0),
+    });
+  }
+  return slices;
+}
+
+export function DailyTokensChart({ days, accounts, selectedAccount }: DailyTokensChartProps) {
+  const [chosen, setChosen] = useState<Breakdown>("tokens");
+  // One account selected: the chart is that account's alone, so there is nothing to split by.
+  const canSplit = selectedAccount === null && accounts.length > 1;
+  const breakdown: Breakdown = canSplit ? chosen : "tokens";
   const avgDay = averageOfCompletedDays(days);
   const bars = avgDay ? [avgDay, ...days] : days;
   const maxTotal = Math.max(1, ...bars.map((day) => day.total_tokens));
+  const legend = slicesOf(bars[bars.length - 1] ?? days[0], breakdown, accounts).filter(
+    (slice) => breakdown === "tokens" || bars.some((day) => slicesOf(day, breakdown, accounts).some((s) => s.id === slice.id && s.amount > 0)),
+  );
 
   return (
     <div className="mb-8 rounded-lg border border-[#262b36] bg-[#161a23] px-6 py-5">
@@ -88,14 +173,30 @@ export function DailyTokensChart({ days }: DailyTokensChartProps) {
         <div className="text-[0.85rem] text-[#8a8f98]">
           Daily tokens (last {days.length} days)
         </div>
-        <div className="flex gap-4">
-          {SEGMENTS.map(({ key, label, className }) => (
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+          {canSplit && (
+            <div className="flex overflow-hidden rounded-md border border-[#262b36] text-[0.7rem]" role="group" aria-label="Split bars by">
+              {(["tokens", "accounts"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={breakdown === option}
+                  onClick={() => setChosen(option)}
+                  className={`cursor-pointer px-2 py-0.5 ${breakdown === option ? "bg-white/10 text-[#e4e6eb]" : "text-[#8a8f98] hover:text-[#c7cbd4]"}`}
+                >
+                  {option === "tokens" ? "Token type" : "Account"}
+                </button>
+              ))}
+            </div>
+          )}
+          {legend.map(({ id, label, className, color }) => (
             <div
               className="flex items-center gap-[0.4rem] text-[0.75rem] text-[#8a8f98]"
-              key={key}
+              key={id}
             >
               <span
-                className={`inline-block h-2.5 w-2.5 rounded-[2px] ${className}`}
+                className={`inline-block h-2.5 w-2.5 rounded-[2px] ${className ?? ""}`}
+                style={color ? { backgroundColor: color } : undefined}
               />
               {label}
             </div>
@@ -111,6 +212,7 @@ export function DailyTokensChart({ days }: DailyTokensChartProps) {
         )}
         {bars.map((day) => {
           const isAvg = day.date === AVG_KEY;
+          const slices = slicesOf(day, breakdown, accounts);
           return (
             <div
               className="flex h-full min-w-0 flex-1 items-end"
@@ -125,13 +227,13 @@ export function DailyTokensChart({ days }: DailyTokensChartProps) {
                 </div>
                 <div
                   className={`flex min-h-[2px] w-full flex-1 flex-col-reverse overflow-hidden rounded-[3px] ${isAvg ? "bg-white/[0.06]" : ""}`}
-                  title={dayTooltip(day, isAvg ? "Avg (last 9 days)" : dayLabel(day.date))}
+                  title={dayTooltip(day, isAvg ? "Avg (last 9 days)" : dayLabel(day.date), slices)}
                 >
-                  {SEGMENTS.map(({ key, className }) => (
+                  {slices.map(({ id, className, color, amount }) => (
                     <div
-                      key={key}
-                      className={`w-full ${className} ${isAvg ? "opacity-[0.3]" : ""}`}
-                      style={{ flex: day[key] || 0.0001 }}
+                      key={id}
+                      className={`w-full ${className ?? ""} ${isAvg ? "opacity-[0.3]" : ""}`}
+                      style={{ flex: amount || 0.0001, ...(color ? { backgroundColor: color } : {}) }}
                     />
                   ))}
                 </div>

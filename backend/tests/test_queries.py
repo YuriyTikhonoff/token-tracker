@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from token_tracker import queries
 
 
@@ -128,6 +130,23 @@ def test_account_filter_also_restricts_tables_charts_and_prompts(db, pricing):
     assert queries.get_daily_usage(db, pricing, days=2, account="me")[-1]["input_tokens"] == 1_000_000
     assert queries.get_weekly_usage(db, pricing, weeks=2, account="guest")[-1]["input_tokens"] == 3_000_000
     assert queries.get_monthly_usage(db, pricing, months=2, account="me")[-1]["input_tokens"] == 1_000_000
+
+
+def test_daily_usage_splits_a_day_by_account_only_when_asked(db, pricing):
+    now = _iso(datetime.now(queries.LOCAL_TZ).replace(hour=12, minute=0, second=0, microsecond=0))
+    for uuid, account, tokens in (("a1", "me", 1_000_000), ("a2", "guest", 3_000_000), ("a3", None, 5)):
+        _usage(db, uuid, now, inp=tokens, out=0, cc=0, cr=0)
+        db.execute("UPDATE usage SET account_uuid = ? WHERE assistant_uuid = ?", (account, uuid))
+
+    plain = queries.get_daily_usage(db, pricing, days=2)[-1]
+    split = queries.get_daily_usage(db, pricing, days=2, by_account=True)
+
+    assert "by_account" not in plain
+    today, yesterday = split[-1], split[-2]
+    assert {a["account_uuid"]: a["input_tokens"] for a in today["by_account"]} == {"me": 1_000_000, "guest": 3_000_000, None: 5}
+    assert sum(a["cost"] for a in today["by_account"]) == pytest.approx(today["cost"])
+    assert today["total_tokens"] == plain["total_tokens"]
+    assert yesterday["by_account"] == []
 
 
 def test_limit_snapshots_are_kept_per_account(db):

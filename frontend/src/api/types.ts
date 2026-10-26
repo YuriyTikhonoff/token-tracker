@@ -16,6 +16,17 @@ export interface TotalsByPeriod {
   all: Totals;
 }
 
+export interface AccountDailyUsage {
+  /** null: usage no account is known for. */
+  account_uuid: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
+  total_tokens: number;
+  cost: number;
+}
+
 export interface DailyUsage {
   date: string;
   input_tokens: number;
@@ -24,6 +35,8 @@ export interface DailyUsage {
   cache_read_tokens: number;
   total_tokens: number;
   cost: number;
+  /** Only filled when the chart is not limited to one account. */
+  by_account?: AccountDailyUsage[];
 }
 
 export interface WeeklyUsage {
