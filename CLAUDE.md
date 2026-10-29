@@ -20,6 +20,10 @@ names from the monorepo around it, no personal data in code, docs or tests.
   ships with Node 22 (npm 10) when touching `package-lock.json`; a lockfile written by npm 11 breaks
   `npm ci` there.
 - Port 8765 is the backend, 5177 the Vite dev server. Run dev servers in your own terminal.
+- 8765 serves the built bundle in `backend/token_tracker/static` (git-ignored), not the source. The
+  Nx `dev` target of the frontend (`frontend/project.json`) runs `npm run dev` and
+  `npm run build:watch` together, so the bundle follows every change while it runs. Without it, run
+  `npm run build:package` after a frontend change, or 8765 keeps showing the old UI.
 - Do not touch a real `token_tracker.db` or `~/.claude/settings.json` from a test or experiment;
   use `TOKEN_TRACKER_HOME` and `CLAUDE_CONFIG_DIR` pointed at a temporary directory.
 - Screenshots in `docs/` must come from made-up data.

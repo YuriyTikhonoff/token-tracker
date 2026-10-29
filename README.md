@@ -161,7 +161,13 @@ python3 -m venv .venv && .venv/bin/pip install -e "backend[dev]"
 
 cd backend && ../.venv/bin/uvicorn token_tracker.main:app --reload --port 8765   # API with auto-reload
 cd frontend && npm run dev                                                       # http://localhost:5177
+cd frontend && npm run build:watch                                               # keeps the bundle on 8765 current
 ```
+
+While developing, open the dashboard on http://localhost:5177: it shows a change at once. Port 8765
+serves the bundle in `backend/token_tracker/static`, which `npm run build:package` writes;
+`npm run build:watch` rebuilds it a second or two after every saved change, so 8765 is current
+after a page reload. The API on 8765 reloads by itself.
 
 The frontend checks are `npm run typecheck`, `npm run lint` and `npm run build`. CI runs all of
 them on every push to `main`.

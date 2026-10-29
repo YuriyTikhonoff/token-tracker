@@ -1,0 +1,16 @@
+{
+  "name": "token-tracker-frontend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "commands": ["npm run dev", "npm run build:watch"],
+        "parallel": true,
+        "cwd": "token-tracker/frontend"
+      }
+    }
+  }
+}
