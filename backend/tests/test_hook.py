@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import token_tracker
 
 HOOK = Path(token_tracker.__file__).with_name("hook.py")
@@ -59,3 +61,23 @@ def test_the_hook_never_fails_the_session(tmp_path):
     )
     assert result.returncode == 0
     assert _events(tmp_path) == []
+
+
+def test_hook_source_runs_on_the_python_that_ships_with_macos():
+    # The hook runs under whatever `python3` the harness finds, which can be the system 3.9;
+    # `datetime.UTC` is 3.11+, so a session started that way recorded no account at all.
+    source = HOOK.read_text(encoding="utf-8")
+    assert "import UTC" not in source and ", UTC" not in source
+
+
+def test_hook_runs_under_the_system_python_when_there_is_one(tmp_path):
+    system_python = Path("/usr/bin/python3")
+    if not system_python.exists():
+        pytest.skip("no system python")
+    _login(tmp_path, "me")
+    subprocess.run(
+        [str(system_python), str(HOOK)],
+        input=json.dumps({"session_id": "s1", "hook_event_name": "SessionStart"}),
+        text=True, check=True, env={"CLAUDE_CONFIG_DIR": str(tmp_path), "HOME": str(tmp_path)},
+    )
+    assert [e["account_uuid"] for e in _events(tmp_path)] == ["me"]

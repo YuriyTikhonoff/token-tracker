@@ -16,7 +16,7 @@ import json
 import os
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Same rules as config.py (this script stays stdlib-only and
@@ -60,7 +60,7 @@ def main():
         if event_name == "UserPromptSubmit" and last and last.get("account_uuid") == account_uuid:
             return
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)  # noqa: UP017 -- datetime.UTC is 3.11+, the hook may run on 3.9
         event = {
             "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z",
             "session_id": session_id,
