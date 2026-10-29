@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from . import config
+from . import accounts, config
 
 DEFAULT_DB_PATH = config.db_path()
 LOCAL_TZ = config.timezone()
@@ -735,15 +735,24 @@ def get_unknown_models(connection, pricing):
 
 def get_account_labels(connection):
     """Every known account's id and label, without the totals
-    get_accounts_summary computes (those read all of the usage table)."""
+    get_accounts_summary computes (those read all of the usage table), and
+    which one Claude Code is logged into right now. That is read from
+    ~/.claude.json on every call, so it follows a switch of account."""
     try:
         rows = connection.execute(
             "SELECT account_uuid, label, is_default FROM accounts ORDER BY is_default DESC, label"
         ).fetchall()
     except sqlite3.OperationalError:
         return []
+    current = accounts.read_current_account()
+    current_uuid = current["account_uuid"] if current else None
     return [
-        {"account_uuid": account_uuid, "label": label, "is_default": bool(is_default)}
+        {
+            "account_uuid": account_uuid,
+            "label": label,
+            "is_default": bool(is_default),
+            "is_current": account_uuid == current_uuid,
+        }
         for account_uuid, label, is_default in rows
     ]
 

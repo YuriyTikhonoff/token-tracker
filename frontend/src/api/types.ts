@@ -157,6 +157,8 @@ export interface AccountLabel {
   account_uuid: string;
   label: string;
   is_default: boolean;
+  /** The account Claude Code is logged into now; follows a switch within a refetch. */
+  is_current: boolean;
 }
 
 // GET /api/overview: the top of the dashboard, without the heavy tables.

@@ -183,6 +183,8 @@ class AccountLabel(BaseModel):
     account_uuid: str
     label: str
     is_default: bool
+    # The account Claude Code is logged into now (from ~/.claude.json).
+    is_current: bool = False
 
 
 class LimitsData(BaseModel):

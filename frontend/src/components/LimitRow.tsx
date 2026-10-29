@@ -12,7 +12,14 @@ interface LimitRowProps {
   snapshot: UsageSnapshotTrend;
   /** Shown instead of the scope, with a colour swatch, when the row belongs to one account. */
   account?: { label: string; color: string };
+  /** Smaller, fainter text, for an account that is not the one logged in now; the bar keeps its size and colours. */
+  compact?: boolean;
 }
+
+const TEXT_SIZES = {
+  normal: { label: "text-[0.85rem]", line: "text-[0.75rem]", margin: "text-[1.1rem]", pct: "", projected: "text-[0.7rem]", fade: "" },
+  compact: { label: "text-[0.75rem]", line: "text-[0.68rem]", margin: "text-[0.9rem]", pct: "text-[0.85rem]", projected: "text-[0.65rem]", fade: "opacity-60" },
+};
 
 const BAR_FILL_COLORS: Record<ReturnType<typeof limitSeverity>, string> = {
   ok: "#5b8def",
@@ -26,7 +33,8 @@ const BAR_FILL_COLORS: Record<ReturnType<typeof limitSeverity>, string> = {
 export const OVER_PACE_COLOR = "#ffd23f";
 export const UNDER_PACE_COLOR = "#333947";
 
-export function LimitRow({ snapshot, account }: LimitRowProps) {
+export function LimitRow({ snapshot, account, compact = false }: LimitRowProps) {
+  const text = TEXT_SIZES[compact ? "compact" : "normal"];
   const severity = limitSeverity(snapshot.pct_used);
   const projection = projectionLines(snapshot);
   const pacePct = pacePercent(snapshot);
@@ -43,8 +51,8 @@ export function LimitRow({ snapshot, account }: LimitRowProps) {
 
   return (
     <div className="grid grid-cols-[340px_1fr] items-center gap-3 border-b border-[#1d2129] py-2 last:border-b-0">
-      <div>
-        <div className="flex items-center gap-1.5 text-[0.85rem] text-[#c7cbd4]">
+      <div className={text.fade}>
+        <div className={`flex items-center gap-1.5 ${text.label} text-[#c7cbd4]`}>
           {account && (
             <span
               className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
@@ -56,18 +64,18 @@ export function LimitRow({ snapshot, account }: LimitRowProps) {
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             {projection.resetLine && (
-              <div className="mt-0.5 text-[0.75rem] text-[#e6e6e6]">
+              <div className={`mt-0.5 ${text.line} text-[#e6e6e6]`}>
                 {projection.resetLine}
               </div>
             )}
             {snapshot.stale && (
-              <div className="mt-0.5 text-[0.75rem] text-[#d9a441]">
+              <div className={`mt-0.5 ${text.line} text-[#d9a441]`}>
                 no fresh reading: {snapshot.captured_pct_used.toFixed(0)}% was the last, {ageLabel(snapshot.captured_at)}
               </div>
             )}
             {projection.exhaustionLine && (
               <div
-                className="mt-0.5 text-[0.75rem]"
+                className={`mt-0.5 ${text.line}`}
                 style={
                   projection.severity
                     ? { color: SEVERITY_COLORS[projection.severity] }
@@ -80,7 +88,7 @@ export function LimitRow({ snapshot, account }: LimitRowProps) {
           </div>
           {projection.marginHours != null && (
             <div
-              className="text-[1.1rem] font-bold whitespace-nowrap tabular-nums"
+              className={`${text.margin} font-bold whitespace-nowrap tabular-nums`}
               style={{
                 color:
                   SEVERITY_COLORS[projection.marginHours < 0 ? "danger" : "ok"],
@@ -110,12 +118,12 @@ export function LimitRow({ snapshot, account }: LimitRowProps) {
             />
           )}
         </div>
-        <div className="flex items-baseline justify-end gap-1 whitespace-nowrap">
-          <span className="font-semibold tabular-nums">
+        <div className={`flex items-baseline justify-end gap-1 whitespace-nowrap ${text.fade}`}>
+          <span className={`${text.pct} font-semibold tabular-nums`}>
             {snapshot.captured_pct_used.toFixed(0)}%
           </span>
           {showProjected && (
-            <span className="text-[0.7rem] text-[#5c6068] tabular-nums">
+            <span className={`${text.projected} text-[#5c6068] tabular-nums`}>
               → {snapshot.pct_used.toFixed(0)}%
             </span>
           )}

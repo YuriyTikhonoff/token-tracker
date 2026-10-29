@@ -101,9 +101,21 @@ def test_limits_is_a_small_payload_with_the_accounts_but_no_heavy_parts(client):
     payload = client.get("/api/limits").json()
     assert set(payload) == {"usage_snapshots", "today", "week", "accounts", "selected_account", "timezone"}
     assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}
-    assert all(set(a) == {"account_uuid", "label", "is_default"} for a in payload["accounts"])
+    assert all(set(a) == {"account_uuid", "label", "is_default", "is_current"} for a in payload["accounts"])
+    assert [a["label"] for a in payload["accounts"] if a["is_current"]] == ["Me"]
     assert payload["selected_account"] is None
     assert payload["timezone"] == "UTC"
+
+
+def test_the_current_account_follows_a_switch_of_login(client):
+    def current():
+        return [a["label"] for a in client.get("/api/limits").json()["accounts"] if a["is_current"]]
+
+    assert current() == ["Me"]
+    accounts.CLAUDE_JSON_PATH.write_text(json.dumps({"oauthAccount": {"accountUuid": "guest", "displayName": "Gus"}}))
+    assert current() == ["Gus"]
+    accounts.CLAUDE_JSON_PATH.write_text("{}")
+    assert current() == []
 
 
 def test_overview_has_the_top_of_the_dashboard_and_none_of_the_tables(client):

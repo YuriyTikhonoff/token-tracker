@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The account Claude Code is logged into now is marked in the account switcher, and its weekly
+  limit comes first while the other accounts' are shown in smaller, fainter text; all of it follows
+  a switch of login.
+
 ## 0.1.0 (2026-10-14)
 
 First public release.

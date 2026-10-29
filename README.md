@@ -81,6 +81,9 @@ and share. Click a label to rename an account.
   logged in when you first ran `ingest`. "make default" in the Accounts section changes that.
 - Subscription limits are recorded for whoever is logged in when you refresh, so an account's limit
   bar only moves while that account is active.
+- The account Claude Code is logged into right now has a green dot in the switcher, and in the
+  weekly limits of all accounts together it comes first and the others are shown in smaller, fainter
+  text. Both follow a `/login` within the dashboard's 30-second refresh.
 - If two people share one Claude account, they cannot be told apart.
 
 ## Commands

@@ -11,19 +11,32 @@ interface LimitsWidgetProps {
   weeklyByAccount: AccountWeeklyLimits[];
 }
 
-/** The weekly limit of each account, under one heading, in the accounts' chart colours. */
+/**
+ * The weekly limit of each account, under one heading, in the accounts' chart colours. The account
+ * Claude Code is logged into now comes first, and the others have smaller text, so the one being
+ * spent stands out. When no account is known to be logged in, the order is the usual one and every
+ * row has the usual size.
+ */
 function WeeklyByAccount({ scope, accounts, weeklyByAccount }: { scope: string; accounts: AccountLabel[]; weeklyByAccount: AccountWeeklyLimits[] }) {
+  const anyCurrent = accounts.some((account) => account.is_current);
   const rows = accounts.flatMap((account, index) => {
     const own = weeklyByAccount.find((entry) => entry.account_uuid === account.account_uuid);
     const snapshot = visibleSnapshots(own?.snapshots ?? []).find((s) => isWeeklyScope(s.scope));
+    // The colour follows the account's place in the list, as in the charts, before the current one moves up.
     return snapshot ? [{ account, snapshot, color: accountColor(index) }] : [];
   });
+  rows.sort((a, b) => Number(b.account.is_current) - Number(a.account.is_current));
   return (
     <div className="border-b border-[#1d2129] py-2 last:border-b-0">
       <div className="text-[0.85rem] text-[#c7cbd4]">{scope}</div>
       <div className="mt-1 pl-3">
         {rows.map(({ account, snapshot, color }) => (
-          <LimitRow key={account.account_uuid} snapshot={snapshot} account={{ label: account.label, color }} />
+          <LimitRow
+            key={account.account_uuid}
+            snapshot={snapshot}
+            account={{ label: account.label, color }}
+            compact={anyCurrent && !account.is_current}
+          />
         ))}
       </div>
     </div>

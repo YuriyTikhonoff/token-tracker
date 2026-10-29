@@ -271,10 +271,11 @@ def test_an_open_window_is_not_stale_and_still_projects(db, pricing):
     assert trend["rate_per_hour"] > 0 and trend["hours_to_limit"] is not None
 
 
-def test_account_labels_carry_no_totals(db):
+def test_account_labels_carry_no_totals_and_mark_the_logged_in_one(db, login):
     db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('me', 'Me', 'me@x.c', 1)")
     db.execute("INSERT INTO accounts (account_uuid, label, email, is_default) VALUES ('g', 'Gus', NULL, 0)")
+    login("g")
     assert queries.get_account_labels(db) == [
-        {"account_uuid": "me", "label": "Me", "is_default": True},
-        {"account_uuid": "g", "label": "Gus", "is_default": False},
+        {"account_uuid": "me", "label": "Me", "is_default": True, "is_current": False},
+        {"account_uuid": "g", "label": "Gus", "is_default": False, "is_current": True},
     ]
