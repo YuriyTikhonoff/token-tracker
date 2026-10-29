@@ -40,7 +40,7 @@ const SEGMENTS: { key: TokenSegmentKey; label: string; className: string }[] = [
 
 function monthLabel(monthStart: string): string {
   const date = new Date(`${monthStart}T00:00:00`);
-  return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+  return date.toLocaleDateString("en-GB", { month: "short" });
 }
 
 function monthHeading(month: MonthlyUsage): string {
