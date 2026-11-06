@@ -135,6 +135,19 @@ shipped ones.
 - `backend/aliases.sh` gives short shell commands (`tt-refresh`, `tt-report`, `tt-dashboard`) from a
   checkout: `echo "source $PWD/backend/aliases.sh" >> ~/.zshrc`.
 
+## VS Code extension
+
+`vscode-extension/` puts the subscription limits against an even pace, and today's tokens and cost,
+in the VS Code status bar. It reads the running backend, so start that first.
+
+```bash
+cd vscode-extension && npm install && npm run install:vscode   # builds token-tracker.vsix and installs it
+```
+
+Reload VS Code afterwards. [Its README](vscode-extension/README.md) covers what the status bar shows,
+the commands and settings, and running it from source; the design is in
+[docs/vscode-extension-plan.md](docs/vscode-extension-plan.md).
+
 ## Privacy
 
 Everything stays on your machine. The database holds token counts, model names, project folder
