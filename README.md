@@ -120,12 +120,25 @@ logged-in account (`<dir>/.claude.json`) and the account events are all read fro
 
 ### Prices
 
-Costs are estimates. `backend/token_tracker/pricing.json` holds dollars per million tokens by model,
-with the date and source in `_meta`. Cache writes are priced at the 5-minute rate. A model with no
-entry is counted at a default rate and flagged by an amber "unpriced model" chip at the top of the
-dashboard; click it for the model names. Token counts are exact.
+Costs are estimates at Claude API list prices. `backend/token_tracker/pricing.json` holds dollars
+per million tokens by model, with the date and source in `_meta`.
+
+- Each API response is counted once. Claude Code writes a response as several transcript entries
+  (thinking, text, each tool call) with the same usage; they are matched by message id and request
+  id. Subagent transcripts (`<project>/<session>/subagents/`) are read too.
+- Cache writes are priced by their lifetime: `cache_creation` for the 5-minute cache,
+  `cache_creation_1h` for the 1-hour cache, where Claude Code writes most of them.
+- Not priced: Haiku 5.5 prompts over 100K tokens (5x), fast mode, US-only inference (1.1x) and web
+  search.
+- A model with no entry is counted at a default rate and flagged by an amber "unpriced model" chip
+  at the top of the dashboard; click it for the model names.
+
 To add or correct a model, put it in `<data directory>/pricing.json`; its entries replace the
 shipped ones.
+
+Databases from before this change counted a response two or three times. The upgrade keeps one row
+of each group of rows with the same session, model and token counts, and gives rows whose
+transcript still exists their exact response key.
 
 ## Keeping it fresh
 

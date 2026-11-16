@@ -104,6 +104,66 @@ def touch_session(connection, session_id, project, timestamp):
     )
 
 
+def message_key(entry):
+    """What identifies one API response: Claude Code writes a response as one
+    entry per content block, each with its own uuid but the same message id,
+    request id and usage."""
+    message_id = entry.get("message", {}).get("id")
+    if not message_id:
+        return None
+    return f"{message_id}:{entry.get('requestId') or ''}"
+
+
+def usage_amounts(usage):
+    """(input, output, cache writes, of which 1-hour, cache reads)."""
+    cache_creation = usage.get("cache_creation_input_tokens", 0) or 0
+    split = usage.get("cache_creation") or {}
+    one_hour = min(split.get("ephemeral_1h_input_tokens", 0) or 0, cache_creation)
+    return (
+        usage.get("input_tokens", 0) or 0,
+        usage.get("output_tokens", 0) or 0,
+        cache_creation,
+        one_hour,
+        usage.get("cache_read_input_tokens", 0) or 0,
+    )
+
+
+TOKEN_COLUMNS = (
+    "input_tokens", "output_tokens", "cache_creation_tokens",
+    "cache_creation_1h_tokens", "cache_read_tokens",
+)
+_TOTAL = "input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens"
+
+
+def _total(amounts):
+    input_tokens, output_tokens, cache_creation, _one_hour, cache_read = amounts
+    return input_tokens + output_tokens + cache_creation + cache_read
+
+
+def store_usage(connection, uuid, key, session_id, prompt_id, model, amounts, timestamp, account):
+    """One row per response. A later copy of a response already stored replaces
+    its counts only when it has more: a few early copies carry zero usage."""
+    if key:
+        existing = connection.execute(
+            f"SELECT assistant_uuid, {_TOTAL} FROM usage WHERE message_key = ?", (key,)
+        ).fetchone()
+        if existing:
+            if _total(amounts) > existing[1]:
+                assignments = ", ".join(f"{column} = ?" for column in TOKEN_COLUMNS)
+                connection.execute(
+                    f"UPDATE usage SET {assignments} WHERE assistant_uuid = ?",
+                    (*amounts, existing[0]),
+                )
+            return
+    connection.execute(
+        "INSERT INTO usage (assistant_uuid, message_key, session_id, prompt_id, model, "
+        f"{', '.join(TOKEN_COLUMNS)}, timestamp, account_uuid) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(assistant_uuid) DO NOTHING",
+        (uuid, key, session_id, prompt_id, model, *amounts, timestamp, account),
+    )
+
+
 def process_file(connection, path, project, prompt_cache, resolver):
     offset = get_file_offset(connection, path)
     new_prompt_count = 0
@@ -161,24 +221,16 @@ def process_file(connection, path, project, prompt_cache, resolver):
                 message = entry.get("message", {})
                 usage = message.get("usage")
                 if usage and uuid:
-                    prompt_id = lookup_prompt_id(connection, uuid, prompt_cache)
-                    connection.execute(
-                        "INSERT INTO usage (assistant_uuid, session_id, prompt_id, model, "
-                        "input_tokens, output_tokens, cache_creation_tokens, "
-                        "cache_read_tokens, timestamp, account_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                        "ON CONFLICT(assistant_uuid) DO NOTHING",
-                        (
-                            uuid,
-                            session_id,
-                            prompt_id,
-                            message.get("model"),
-                            usage.get("input_tokens", 0),
-                            usage.get("output_tokens", 0),
-                            usage.get("cache_creation_input_tokens", 0),
-                            usage.get("cache_read_input_tokens", 0),
-                            timestamp,
-                            resolver.resolve(session_id, timestamp),
-                        ),
+                    store_usage(
+                        connection,
+                        uuid,
+                        message_key(entry),
+                        session_id,
+                        lookup_prompt_id(connection, uuid, prompt_cache),
+                        message.get("model"),
+                        usage_amounts(usage),
+                        timestamp,
+                        resolver.resolve(session_id, timestamp),
                     )
 
         set_file_offset(connection, path, offset + new_bytes_consumed)
@@ -226,6 +278,78 @@ def backfill_prompt_ids(connection, projects_dir):
     return updated
 
 
+def transcript_files(projects_dir):
+    """Sessions, then their subagents: Claude Code writes a subagent's
+    conversation to <project>/<session>/subagents/*.jsonl, with its own usage."""
+    sessions = sorted(projects_dir.glob("*/*.jsonl"))
+    subagents = sorted(projects_dir.glob("*/*/subagents/*.jsonl"))
+    return [(path, path.parent.name) for path in sessions] + [
+        (path, path.parents[2].name) for path in subagents
+    ]
+
+
+KEYS_BACKFILLED = "usage_message_keys_backfilled"
+
+
+def backfill_message_keys(connection, projects_dir):
+    """Once, after schema version 3: give rows that still have a transcript their
+    exact response key and 1-hour cache writes, and drop the copies of a
+    response that the migration's grouping by equal counts could not see.
+    Returns (rows keyed, rows removed)."""
+    if connection.execute("SELECT 1 FROM app_state WHERE key = ?", (KEYS_BACKFILLED,)).fetchone():
+        return 0, 0
+    keyed = removed = 0
+    if connection.execute("SELECT 1 FROM usage WHERE message_key IS NULL LIMIT 1").fetchone() is None:
+        files = []  # a new database: nothing to key
+    else:
+        files = transcript_files(projects_dir)
+    for path, _project in files:
+        try:
+            handle = open(path, encoding="utf-8")
+        except OSError:
+            continue
+        with handle:
+            for line in handle:
+                if '"usage"' not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                usage = entry.get("message", {}).get("usage") if entry.get("type") == "assistant" else None
+                key = message_key(entry) if usage else None
+                if not key or not entry.get("uuid"):
+                    continue
+                row = connection.execute(
+                    f"SELECT {_TOTAL} FROM usage WHERE assistant_uuid = ? AND message_key IS NULL",
+                    (entry["uuid"],),
+                ).fetchone()
+                if row is None:
+                    continue
+                other = connection.execute(
+                    f"SELECT assistant_uuid, {_TOTAL} FROM usage WHERE message_key = ?", (key,)
+                ).fetchone()
+                if other and other[1] >= row[0]:
+                    connection.execute("DELETE FROM usage WHERE assistant_uuid = ?", (entry["uuid"],))
+                    removed += 1
+                    continue
+                if other:  # a copy keyed earlier in this pass, with fewer tokens
+                    connection.execute("DELETE FROM usage WHERE assistant_uuid = ?", (other[0],))
+                    removed += 1
+                    keyed -= 1
+                one_hour = usage_amounts(usage)[3]
+                connection.execute(
+                    "UPDATE usage SET message_key = ?, cache_creation_1h_tokens = ? WHERE assistant_uuid = ?",
+                    (key, one_hour, entry["uuid"]),
+                )
+                keyed += 1
+    connection.execute(
+        "INSERT INTO app_state (key, value) VALUES (?, ?)", (KEYS_BACKFILLED, f"{keyed} keyed, {removed} removed")
+    )
+    connection.commit()
+    return keyed, removed
+
+
 def run(projects_dir, db_path):
     connection = queries.connect(db_path)
     schema.migrate(connection)
@@ -234,11 +358,12 @@ def run(projects_dir, db_path):
     resolver = accounts.AccountResolver(connection)
     prompt_cache = {}
 
-    transcript_files = sorted(projects_dir.glob("*/*.jsonl"))
+    backfill_message_keys(connection, projects_dir)
+
+    files = transcript_files(projects_dir)
     new_prompt_count = 0
     new_meaningful_prompt_count = 0
-    for path in transcript_files:
-        project = path.parent.name
+    for path, project in files:
         file_new_prompt_count, file_new_meaningful_prompt_count = process_file(
             connection, path, project, prompt_cache, resolver
         )
@@ -248,7 +373,7 @@ def run(projects_dir, db_path):
     connection.commit()
     connection.close()
     return {
-        "file_count": len(transcript_files),
+        "file_count": len(files),
         "new_prompt_count": new_prompt_count,
         "new_meaningful_prompt_count": new_meaningful_prompt_count,
     }

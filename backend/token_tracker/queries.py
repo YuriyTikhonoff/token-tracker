@@ -38,12 +38,18 @@ def load_pricing(pricing_path=None):
     return config.load_pricing(pricing_path)
 
 
-def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens):
+def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+                 cache_creation_1h_tokens=0):
+    """Dollars for token counts of one model. `cache_creation_tokens` includes
+    the 1-hour cache writes, which cost `cache_creation_1h` (twice the input
+    rate when a price list has no such entry); the rest are 5-minute writes."""
     rates = pricing.get(model) or pricing["_default"]
+    one_hour_rate = rates.get("cache_creation_1h", rates["input"] * 2)
     return (
         input_tokens * rates["input"]
         + output_tokens * rates["output"]
-        + cache_creation_tokens * rates["cache_creation"]
+        + (cache_creation_tokens - cache_creation_1h_tokens) * rates["cache_creation"]
+        + cache_creation_1h_tokens * one_hour_rate
         + cache_read_tokens * rates["cache_read"]
     ) / 1_000_000
 
@@ -54,7 +60,7 @@ def get_totals(connection, pricing, since_utc_iso=None, account=None):
     # loop over every row (hundreds of thousands, for all time).
     query = (
         "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), "
-        "SUM(cache_read_tokens) FROM usage"
+        "SUM(cache_read_tokens), SUM(cache_creation_1h_tokens) FROM usage"
     )
     conditions, params = [], []
     if since_utc_iso:
@@ -69,13 +75,13 @@ def get_totals(connection, pricing, since_utc_iso=None, account=None):
     rows = connection.execute(query, params).fetchall()
 
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0, "cost": 0.0}
-    for model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
+    for model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour in rows:
         totals["input_tokens"] += input_tokens
         totals["output_tokens"] += output_tokens
         totals["cache_creation_tokens"] += cache_creation_tokens
         totals["cache_read_tokens"] += cache_read_tokens
         totals["cost"] += cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour
         )
     totals["total_tokens"] = (
         totals["input_tokens"] + totals["output_tokens"] + totals["cache_creation_tokens"] + totals["cache_read_tokens"]
@@ -123,7 +129,7 @@ def get_today_and_week_totals(connection, pricing, account=None):
 def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params, by_account=False):
     """Usage since `earliest_utc_iso`, summed per model and per 15-minute UTC
     bucket, as (bucket_start_iso, model, input, output, cache_creation,
-    cache_read). The charts need local days, weeks and months, so the time zone
+    cache_read, cache_creation_1h). The charts need local days, weeks and months, so the time zone
     is applied in Python, but to a few thousand buckets instead of every row.
     Every time zone's offset is a multiple of 15 minutes, so a bucket never
     straddles a local midnight. With `by_account`, each row also ends with the
@@ -132,8 +138,8 @@ def _usage_in_buckets(connection, earliest_utc_iso, account_sql, account_params,
     account_column = ", account_uuid" if by_account else ""
     return connection.execute(
         "SELECT substr(timestamp, 1, 14) || printf('%02d', substr(timestamp, 15, 2) / 15 * 15) || ':00Z' AS bucket, "
-        "model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), SUM(cache_read_tokens)"
-        + account_column + " FROM usage WHERE timestamp >= ?" + account_sql + " GROUP BY bucket, model" + account_column,
+        "model, SUM(input_tokens), SUM(output_tokens), SUM(cache_creation_tokens), SUM(cache_read_tokens), "
+        "SUM(cache_creation_1h_tokens)" + account_column + " FROM usage WHERE timestamp >= ?" + account_sql + " GROUP BY bucket, model" + account_column,
         (earliest_utc_iso, *account_params),
     ).fetchall()
 
@@ -174,11 +180,12 @@ def _usage_per_period(connection, pricing, starts_local, key_name, period_start,
 
     for timestamp, model, *amounts in rows:
         account_uuid = amounts.pop() if by_account else None
+        one_hour = amounts.pop()
         key = period_start(_parse_usage_timestamp(timestamp).astimezone(LOCAL_TZ)).strftime("%Y-%m-%d")
         bucket = periods.get(key)
         if bucket is None:
             continue
-        cost = cost_for_row(pricing, model, *amounts)
+        cost = cost_for_row(pricing, model, *amounts, one_hour)
         _add_totals(bucket, *amounts, cost)
         if by_account:
             _add_totals(per_account[key].setdefault(account_uuid, _empty_totals()), *amounts, cost)
@@ -605,16 +612,16 @@ def get_by_project(connection, pricing, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT s.project, u.model, SUM(u.input_tokens), SUM(u.output_tokens), "
-        "SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens), SUM(u.cache_creation_1h_tokens) "
         "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql
         + " GROUP BY s.project, u.model",
         account_params,
     ).fetchall()
 
     by_project = {}
-    for project, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
+    for project, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour in rows:
         cost = cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour
         )
         entry = by_project.setdefault(project, {"project": project, "tokens": 0, "cost": 0.0})
         entry["tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
@@ -627,16 +634,17 @@ def get_by_session(connection, pricing, limit=None, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT s.session_id, s.project, s.first_seen, s.last_seen, u.model, "
-        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens), "
+        "SUM(u.cache_creation_1h_tokens) "
         "FROM usage u JOIN sessions s ON s.session_id = u.session_id" + account_sql
         + " GROUP BY s.session_id, s.project, s.first_seen, s.last_seen, u.model",
         account_params,
     ).fetchall()
 
     by_session = {}
-    for session_id, project, first_seen, last_seen, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
+    for session_id, project, first_seen, last_seen, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour in rows:
         cost = cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour
         )
         entry = by_session.setdefault(
             session_id,
@@ -662,17 +670,18 @@ def get_by_prompt(connection, pricing, limit=None, account=None):
     account_sql, account_params = _account_clause(account, "u.account_uuid", "WHERE")
     rows = connection.execute(
         "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, u.model, "
-        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens), "
+        "SUM(u.cache_creation_1h_tokens) "
         "FROM usage u LEFT JOIN prompts p ON p.prompt_id = u.prompt_id" + account_sql
         + " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
         account_params,
     ).fetchall()
 
     by_prompt = {}
-    for prompt_id, session_id, preview, timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
+    for prompt_id, session_id, preview, timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour in rows:
         key = prompt_id or f"(no-prompt-id in session {session_id})"
         cost = cost_for_row(
-            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+            pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour
         )
         entry = by_prompt.setdefault(
             key, {"prompt_id": key, "preview": preview, "timestamp": timestamp, "tokens": 0, "cost": 0.0}
@@ -701,14 +710,15 @@ def get_prompt_log(connection, pricing, limit=None, account=None):
         params = (*account_params, limit)
     rows = connection.execute(
         "SELECT p.prompt_id, p.session_id, p.preview, p.timestamp, u.model, "
-        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens) "
+        "SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.cache_creation_tokens), SUM(u.cache_read_tokens), "
+        "SUM(u.cache_creation_1h_tokens) "
         "FROM (" + prompts_sql + ") p LEFT JOIN usage u ON u.prompt_id = p.prompt_id"
         " GROUP BY p.prompt_id, p.session_id, p.preview, p.timestamp, u.model",
         params,
     ).fetchall()
 
     by_prompt = {}
-    for prompt_id, session_id, preview, timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens in rows:
+    for prompt_id, session_id, preview, timestamp, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour in rows:
         entry = by_prompt.setdefault(
             prompt_id,
             {"prompt_id": prompt_id, "session_id": session_id, "preview": preview, "timestamp": timestamp, "tokens": 0, "cost": 0.0},
@@ -716,7 +726,7 @@ def get_prompt_log(connection, pricing, limit=None, account=None):
         if model is not None:
             entry["tokens"] += input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens
             entry["cost"] += cost_for_row(
-                pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+                pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, one_hour
             )
 
     ranked = sorted(by_prompt.values(), key=lambda entry: entry["timestamp"] or "", reverse=True)
@@ -795,3 +805,4 @@ def get_accounts_summary(connection, pricing):
     for summary in summaries:
         summary["cost_share"] = summary["all"]["cost"] / total_cost if total_cost > 0 else 0.0
     return summaries
+

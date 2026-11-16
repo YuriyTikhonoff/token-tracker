@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Costs and token counts were about twice too high: Claude Code writes one response as several
+  transcript entries, and each was counted. Each API response is now counted once (by message id
+  and request id). An upgraded database keeps one row of each group of copies.
+- Cache writes to the 1-hour cache, where Claude Code writes most of them, are priced at their own
+  rate (2x input) instead of the 5-minute one.
+- Prices updated to Anthropic's list of 2026-11-17: Fable 5.2 and the Mythos models added, Opus
+  4.5, 4.1 and 4, Sonnet 4.5 and 4 added, cache reads of Sonnet 5.5 and Fable 5 corrected.
+- Subagent transcripts are read.
+- The top of the dashboard is one sticky toolbar: account switcher, notices, the time of the last
+  refresh, a ⋯ menu with the Accounts table, and Refresh. The refresh status is a toast.
+
 - The account Claude Code is logged into now is marked in the account switcher, and its weekly
   limit comes first while the other accounts' are shown in smaller, fainter text; all of it follows
   a switch of login.

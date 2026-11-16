@@ -67,4 +67,7 @@ def test_every_shipped_price_is_complete():
     for model, rates in config.load_pricing(config.SHIPPED_PRICING_PATH).items():
         if model.startswith("_") and model != "_default":
             continue
-        assert set(rates) == {"input", "output", "cache_creation", "cache_read"}, model
+        assert set(rates) == {"input", "output", "cache_creation", "cache_creation_1h", "cache_read"}, model
+        # Anthropic's multipliers: 5-minute cache writes 1.25x input, 1-hour 2x.
+        assert rates["cache_creation"] == rates["input"] * 1.25, model
+        assert rates["cache_creation_1h"] == rates["input"] * 2, model

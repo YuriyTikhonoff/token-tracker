@@ -279,3 +279,34 @@ def test_account_labels_carry_no_totals_and_mark_the_logged_in_one(db, login):
         {"account_uuid": "me", "label": "Me", "is_default": True, "is_current": False},
         {"account_uuid": "g", "label": "Gus", "is_default": False, "is_current": True},
     ]
+
+
+def test_one_hour_cache_writes_cost_their_own_rate_or_twice_the_input():
+    pricing = {
+        "_default": {"input": 1, "output": 1, "cache_creation": 1, "cache_read": 1},
+        "with": {"input": 4, "output": 20, "cache_creation": 5, "cache_creation_1h": 8, "cache_read": 0.2},
+        "without": {"input": 4, "output": 20, "cache_creation": 5, "cache_read": 0.2},
+    }
+    # 1M cache writes, 400K of them to the 1-hour cache
+    assert queries.cost_for_row(pricing, "with", 0, 0, 1_000_000, 0, 400_000) == 600_000 * 5 / 1e6 + 400_000 * 8 / 1e6
+    assert queries.cost_for_row(pricing, "without", 0, 0, 1_000_000, 0, 400_000) == 3.0 + 400_000 * 8 / 1e6
+    assert queries.cost_for_row(pricing, "with", 0, 0, 1_000_000, 0) == 5.0
+
+
+def test_totals_charts_and_tables_price_one_hour_cache_writes(db):
+    pricing = {"_default": {"input": 0, "output": 0, "cache_creation": 1, "cache_creation_1h": 3, "cache_read": 0}}
+    db.execute(
+        "INSERT INTO usage (assistant_uuid, session_id, prompt_id, model, cache_creation_tokens, "
+        "cache_creation_1h_tokens, timestamp) VALUES ('a', 's', 'p', 'm', 2000000, 1000000, ?)",
+        (_iso(datetime.now(ZoneInfo("UTC"))),),
+    )
+    db.execute("INSERT INTO sessions (session_id, project) VALUES ('s', 'proj')")
+    db.execute("INSERT INTO prompts (prompt_id, session_id, timestamp) VALUES ('p', 's', '2026-01-01T00:00:00Z')")
+    expected = 1.0 + 3.0
+    assert queries.get_totals(db, pricing)["cost"] == expected
+    assert queries.get_daily_usage(db, pricing, days=1)[-1]["cost"] == expected
+    assert queries.get_by_project(db, pricing)[0]["cost"] == expected
+    assert queries.get_by_session(db, pricing)[0]["cost"] == expected
+    assert queries.get_by_prompt(db, pricing)[0]["cost"] == expected
+    assert queries.get_prompt_log(db, pricing)[0]["cost"] == expected
+

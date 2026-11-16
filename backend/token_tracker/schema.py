@@ -99,7 +99,56 @@ def _v2_accounts(connection):
         )
 
 
-MIGRATIONS = [_v1_base, _v2_accounts]
+def _v3_one_row_per_response(connection):
+    """Count each API response once, and keep 1-hour cache writes apart.
+
+    Claude Code writes one transcript entry per content block of a response
+    (thinking, text, each tool call), each with its own uuid and the same usage,
+    so rows keyed by uuid counted a response two or more times. Rows now carry
+    the response's `message_key` (message id and request id), unique.
+
+    Rows already stored have no message id. Copies of one response have the same
+    session, model and token counts, and two different responses with equal
+    counts in one session were not found (cache reads grow with every call), so
+    all but one row of each such group is dropped here. Rows whose transcript
+    still exists get their exact key on the next ingest (see ingest.py).
+    """
+    for column, definition in (
+        ("message_key", "TEXT"),
+        ("cache_creation_1h_tokens", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        if column not in _columns(connection, "usage"):
+            connection.execute(f"ALTER TABLE usage ADD COLUMN {column} {definition}")
+    connection.execute(
+        """DELETE FROM usage
+           WHERE input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens > 0
+             AND rowid NOT IN (
+               SELECT MIN(rowid) FROM usage
+               GROUP BY session_id, model, input_tokens, output_tokens,
+                        cache_creation_tokens, cache_read_tokens)"""
+    )
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_usage_message_key ON usage(message_key) "
+        "WHERE message_key IS NOT NULL"
+    )
+    # One-off jobs the application runs once after an upgrade, by name.
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT)"
+    )
+    # When the cost calculation was last checked against Anthropic's published
+    # rules, and against which version of the calculation (see queries.py).
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS cost_audits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            audited_at TEXT NOT NULL,
+            algorithm_version INTEGER NOT NULL,
+            pricing_updated TEXT,
+            source TEXT,
+            note TEXT)"""
+    )
+
+
+MIGRATIONS = [_v1_base, _v2_accounts, _v3_one_row_per_response]
 CURRENT_VERSION = len(MIGRATIONS)
 
 
