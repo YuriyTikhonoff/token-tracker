@@ -31,20 +31,27 @@ export function AccountSwitcher({
     })),
   ];
 
+  // A segmented control: one outlined group, the chosen account filled. It
+  // scrolls sideways rather than wrapping when the accounts do not fit.
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2 text-[0.8rem]">
-      <span className="text-[#8a8f98]">Account:</span>
+    <div
+      role="group"
+      aria-label="Account"
+      className="flex w-max max-w-full gap-0.5 overflow-x-auto rounded-lg border border-[#262b36] p-0.5 text-[0.8rem] [scrollbar-width:none]"
+    >
       {options.map((option) => {
         const isActive = option.key === selected;
         return (
           <button
             key={option.key ?? "all"}
+            type="button"
+            aria-pressed={isActive}
             title={option.title}
             onClick={() => onSelect(option.key)}
-            className={`inline-flex cursor-pointer items-center gap-[0.4rem] rounded-md border px-[0.7rem] py-[0.25rem] ${
+            className={`inline-flex shrink-0 cursor-pointer items-center gap-[0.4rem] rounded-md px-[0.7rem] py-[0.25rem] whitespace-nowrap ${
               isActive
-                ? "border-[#5b8def] bg-[#5b8def]/15 text-[#c7cbd4]"
-                : "border-[#262b36] bg-transparent text-[#8a8f98]"
+                ? "bg-[#5b8def]/15 text-[#c7cbd4]"
+                : "bg-transparent text-[#8a8f98] hover:text-[#c7cbd4]"
             }`}
           >
             {option.current && (

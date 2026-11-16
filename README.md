@@ -74,11 +74,11 @@ everything else in the file, and leaves a timestamped backup next to it.
   middle of a conversation is noticed at the next prompt.
 
 Each row of usage then belongs to the account that was active in its session at that moment. In
-the dashboard you get an account switcher, and an **Accounts** section with each account's totals
-and share. Click a label to rename an account.
+the dashboard you get an account switcher in the bar at the top, and an **Accounts** table with
+each account's totals and share under the ⋯ menu there. Click a label to rename an account.
 
 - Usage from before the hooks were installed belongs to the **default** account: the one that was
-  logged in when you first ran `ingest`. "make default" in the Accounts section changes that.
+  logged in when you first ran `ingest`. "make default" in the Accounts table changes that.
 - Subscription limits are recorded for whoever is logged in when you refresh, so an account's limit
   bar only moves while that account is active.
 - The account Claude Code is logged into right now has a green dot in the switcher, and in the
@@ -122,7 +122,8 @@ logged-in account (`<dir>/.claude.json`) and the account events are all read fro
 
 Costs are estimates. `backend/token_tracker/pricing.json` holds dollars per million tokens by model,
 with the date and source in `_meta`. Cache writes are priced at the 5-minute rate. A model with no
-entry is counted at a default rate and listed in a notice on the dashboard. Token counts are exact.
+entry is counted at a default rate and flagged by an amber "unpriced model" chip at the top of the
+dashboard; click it for the model names. Token counts are exact.
 To add or correct a model, put it in `<data directory>/pricing.json`; its entries replace the
 shipped ones.
 

@@ -15,6 +15,8 @@ interface DailyTokensChartProps {
   accounts: AccountLabel[];
   /** The account the dashboard is limited to; null for all of them. */
   selectedAccount: string | null;
+  /** Some model has no price, so the costs under the bars are rough. */
+  approximateCosts?: boolean;
 }
 
 type TokenSegmentKey =
@@ -117,7 +119,7 @@ function slicesOf(day: DailyUsage, breakdown: Breakdown, accounts: AccountLabel[
   return accountSlices(day.by_account, accounts);
 }
 
-export function DailyTokensChart({ days, accounts, selectedAccount }: DailyTokensChartProps) {
+export function DailyTokensChart({ days, accounts, selectedAccount, approximateCosts = false }: DailyTokensChartProps) {
   const { breakdown, canSplit, setBreakdown } = useBreakdown(selectedAccount, accounts);
   const { bind, node } = useBarTip();
   const avgDay = averageOfCompletedDays(days);
@@ -131,6 +133,7 @@ export function DailyTokensChart({ days, accounts, selectedAccount }: DailyToken
       <div className="mb-4 flex items-center justify-between">
         <div className="text-[0.85rem] text-[#8a8f98]">
           Daily tokens (last {days.length} days)
+          {approximateCosts && <span className="ml-2 text-[#d9a441]">≈ costs</span>}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
           {canSplit && <BreakdownToggle value={breakdown} onChange={setBreakdown} />}

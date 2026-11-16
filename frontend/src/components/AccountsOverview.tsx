@@ -4,7 +4,6 @@ import type { AccountSummary } from "../api/types";
 import { useUpdateAccount } from "../hooks/useUpdateAccount";
 import { fmtCost, fmtTokens, stackedTime } from "../lib/format";
 import { Bar } from "./Bar";
-import { CollapsibleSection } from "./shared/CollapsibleSection";
 import { SectionLoader } from "./shared/SectionLoader";
 
 interface AccountRowsProps {
@@ -155,21 +154,29 @@ function AccountRows({ accounts }: AccountRowsProps) {
   );
 }
 
-// Loaded when the section is opened. Every account is listed whichever one the
-// dashboard has selected, so it takes no account.
-export function AccountsOverview() {
+// Opened from the toolbar's ⋯ menu and loaded when it opens. Every account is
+// listed whichever one the dashboard has selected, so it takes no account.
+export function AccountsPanel({ onClose }: { onClose: () => void }) {
   return (
-    <CollapsibleSection
-      title="Accounts"
-      subtitle={
-        <span className="text-[0.8rem] text-[#8a8f98]">
-          who used this machine
-        </span>
-      }
-    >
+    <section className="mb-6 rounded-lg border border-[#262b36] bg-[#161a23] px-5 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="text-[1rem] text-[#c7cbd4]">
+          Accounts{" "}
+          <span className="text-[0.8rem] text-[#8a8f98]">
+            who used this machine
+          </span>
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="cursor-pointer rounded-md border border-[#262b36] bg-transparent px-[0.7rem] py-[0.2rem] text-[0.8rem] text-[#8a8f98]"
+        >
+          Close
+        </button>
+      </div>
       <SectionLoader<AccountSummary[]> path="accounts" account={null}>
         {(accounts) => <AccountRows accounts={accounts} />}
       </SectionLoader>
-    </CollapsibleSection>
+    </section>
   );
 }
