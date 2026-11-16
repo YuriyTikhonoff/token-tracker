@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 
-import type { AccountLabel } from "../api/types";
+import type { AccountLabel, CostAuditStatus } from "../api/types";
 import { useDismiss, useNow, usePageScrolled } from "../hooks/usePageUi";
 import { useRefreshStatus } from "../hooks/useRefreshStatus";
 import { AccountSwitcher } from "./AccountSwitcher";
 import {
+  AuditPopup,
   MoreMenu,
   RefreshToastView,
   UnpricedPopup,
@@ -17,8 +18,12 @@ interface ToolbarProps {
   onSelectAccount: (account: string | null) => void;
   /** Models with no price: their costs are counted at the default rate. */
   unknownModels: string[];
+  /** When the cost calculation was last audited; null before the data loads. */
+  costAudit: CostAuditStatus | null;
   onOpenAccounts: () => void;
 }
+
+type Popup = "unpriced" | "audit" | "menu";
 
 function updatedLabel(refreshedAt: number, now: number): string {
   const minutes = Math.floor((now - refreshedAt) / 60_000);
@@ -37,25 +42,29 @@ export function Toolbar({
   selectedAccount,
   onSelectAccount,
   unknownModels,
+  costAudit,
   onOpenAccounts,
 }: ToolbarProps) {
   const refresh = useRefreshStatus();
-  const [popup, setPopup] = useState<"unpriced" | "menu" | null>(null);
+  const [popup, setPopup] = useState<Popup | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const now = useNow(30_000);
   const scrolled = usePageScrolled();
 
   const closePopup = useCallback(() => setPopup(null), []);
   useDismiss(endRef, popup !== null, closePopup);
-  const toggle = (which: "unpriced" | "menu") =>
-    setPopup(popup === which ? null : which);
+  const toggle = (which: Popup) => setPopup(popup === which ? null : which);
 
   const updated =
     refresh.refreshedAt === null
       ? null
       : updatedLabel(refresh.refreshedAt, now);
   const hasUnpriced = unknownModels.length > 0;
-  const hasMenu = accounts.length > 0 || hasUnpriced || updated !== null;
+  const hasMenu =
+    accounts.length > 0 ||
+    hasUnpriced ||
+    updated !== null ||
+    costAudit !== null;
 
   return (
     <>
@@ -92,6 +101,16 @@ export function Toolbar({
               <UnpricedLabel count={unknownModels.length} />
             </button>
           )}
+          {costAudit?.due && (
+            <button
+              type="button"
+              aria-expanded={popup === "audit"}
+              onClick={() => toggle("audit")}
+              className="hidden cursor-pointer items-center rounded-full border border-[#e05a5a]/40 bg-[#e05a5a]/12 px-[0.6rem] py-[0.1rem] text-[0.75rem] font-semibold whitespace-nowrap text-[#e05a5a] md:inline-flex"
+            >
+              {costAudit.overdue ? "⚠ cost audit overdue" : "⚠ cost audit due"}
+            </button>
+          )}
           {updated && (
             <span className="hidden text-[0.75rem] whitespace-nowrap text-[#8a8f98] tabular-nums md:inline">
               {updated}
@@ -100,14 +119,22 @@ export function Toolbar({
           {hasMenu && (
             <button
               type="button"
-              aria-label="More"
+              aria-label={costAudit?.due ? "More (cost audit due)" : "More"}
               aria-expanded={popup === "menu"}
               onClick={() => toggle("menu")}
-              className={`grid h-[28px] w-[30px] cursor-pointer place-items-center rounded-md border bg-transparent text-[1rem] leading-none text-[#c7cbd4] ${
+              className={`relative grid h-[28px] w-[30px] cursor-pointer place-items-center rounded-md border bg-transparent text-[1rem] leading-none text-[#c7cbd4] ${
                 popup === "menu" ? "border-[#5b8def]" : "border-[#262b36]"
               }`}
             >
               ⋯
+              {costAudit?.due && (
+                // On a narrow screen the chip is hidden: the dot says the
+                // menu has something that needs attention.
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-[3px] -right-[3px] size-[8px] rounded-full bg-[#e05a5a] md:hidden"
+                />
+              )}
             </button>
           )}
           <button
@@ -121,16 +148,19 @@ export function Toolbar({
           </button>
 
           {popup === "unpriced" && <UnpricedPopup models={unknownModels} />}
+          {popup === "audit" && costAudit && <AuditPopup audit={costAudit} />}
           {popup === "menu" && (
             <MoreMenu
               hasAccounts={accounts.length > 0}
               unpricedCount={unknownModels.length}
               updated={updated}
+              audit={costAudit}
               onOpenAccounts={() => {
                 setPopup(null);
                 onOpenAccounts();
               }}
               onOpenUnpriced={() => setPopup("unpriced")}
+              onOpenAudit={() => setPopup("audit")}
             />
           )}
         </div>

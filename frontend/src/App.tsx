@@ -42,6 +42,7 @@ function App() {
         selectedAccount={selectedAccount}
         onSelectAccount={setSelectedAccount}
         unknownModels={unknownModels}
+        costAudit={overview?.cost_audit ?? null}
         onOpenAccounts={() => {
           setAccountsOpen(true);
           // The panel opens at the top of the page, which may be scrolled away.

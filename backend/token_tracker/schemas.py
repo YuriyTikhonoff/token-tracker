@@ -207,6 +207,26 @@ class CodexSection(BaseModel):
     codex_rate_limits: list[CodexRateLimitTrend] = []
 
 
+class CostAudit(BaseModel):
+    audited_at: str
+    algorithm_version: int
+    pricing_updated: str | None = None
+    source: str | None = None
+    note: str | None = None
+
+
+class CostAuditStatus(BaseModel):
+    """When the cost calculation was last checked against Anthropic's rules,
+    and whether another check is due (see queries.get_cost_audit_status)."""
+
+    last: CostAudit | None = None
+    age_days: int | None = None
+    due: bool = True
+    # Older than the audit interval (two weeks).
+    overdue: bool = False
+    reasons: list[str] = []
+
+
 class OverviewData(BaseModel):
     """The payload of GET /api/overview: the top of the dashboard (limits and
     the daily chart), cheap enough to show before the rest of DashboardData."""
@@ -218,6 +238,7 @@ class OverviewData(BaseModel):
     weekly_limits_by_account: list[AccountWeeklyLimits] = []
     selected_account: str | None = None
     timezone: str = "UTC"
+    cost_audit: CostAuditStatus | None = None
 
 
 class RefreshResult(BaseModel):

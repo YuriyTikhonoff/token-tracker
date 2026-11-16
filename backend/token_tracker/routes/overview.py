@@ -37,4 +37,5 @@ def get_overview(
         weekly_limits_by_account=queries.get_weekly_limits_by_account(connection) if account is None else [],
         selected_account=account,
         timezone=timezone,
+        cost_audit=queries.get_cost_audit_status(connection, pricing.get("_meta", {}).get("updated")),
     )

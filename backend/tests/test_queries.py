@@ -310,3 +310,21 @@ def test_totals_charts_and_tables_price_one_hour_cache_writes(db):
     assert queries.get_by_prompt(db, pricing)[0]["cost"] == expected
     assert queries.get_prompt_log(db, pricing)[0]["cost"] == expected
 
+
+def test_a_cost_audit_is_due_until_one_is_recorded_and_again_when_things_change(db):
+    assert queries.get_cost_audit_status(db, "2026-11-17")["reasons"] == ["never audited"]
+
+    queries.record_cost_audit(db, "2026-11-17", note="checked", audited_at="2026-11-17T10:00:00Z")
+    status = queries.get_cost_audit_status(db, "2026-11-17", now=datetime(2026, 11, 20, 12, tzinfo=ZoneInfo("UTC")))
+    assert status["due"] is False
+    assert status["age_days"] == 3
+    assert status["last"]["algorithm_version"] == queries.COST_ALGORITHM_VERSION
+
+    two_weeks = datetime(2026, 12, 1, 9, tzinfo=ZoneInfo("UTC"))
+    assert queries.get_cost_audit_status(db, "2026-11-17", now=two_weeks)["due"] is False
+    late = datetime(2026, 12, 2, 11, tzinfo=ZoneInfo("UTC"))
+    overdue = queries.get_cost_audit_status(db, "2026-11-17", now=late)
+    assert (overdue["overdue"], overdue["reasons"]) == (True, ["last audit 15 days ago"])
+    newer_prices = queries.get_cost_audit_status(db, "2026-12-01", now=datetime(2026, 11, 20, tzinfo=ZoneInfo("UTC")))
+    assert newer_prices["reasons"] == ["the price list changed since"]
+

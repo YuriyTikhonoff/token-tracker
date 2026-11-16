@@ -97,6 +97,7 @@ each account's totals and share under the ⋯ menu there. Click a label to renam
 | `report [--top N] [--account ID]` | text report in the terminal |
 | `codex` | read new Codex CLI sessions |
 | `install-hooks` / `uninstall-hooks` | add or remove the account-tracking hooks |
+| `audit-costs [--note TEXT] [--source URL]` | record that the cost calculation was checked against Anthropic's prices and rules |
 | `doctor` | check the setup and say what is missing |
 
 ## Configuration
@@ -135,6 +136,12 @@ per million tokens by model, with the date and source in `_meta`.
 
 To add or correct a model, put it in `<data directory>/pricing.json`; its entries replace the
 shipped ones.
+
+The calculation is checked against Anthropic's published prices and rules every two weeks. After a
+check, record it with `token-tracker audit-costs --note "what was checked"`; the dates are kept in
+the database. When the last check is older than two weeks, the price list is newer than it, or the
+calculation changed since, the dashboard shows a red "cost audit overdue" (or "due") chip, and
+`doctor` reports it.
 
 Databases from before this change counted a response two or three times. The upgrade keeps one row
 of each group of rows with the same session, model and token counts, and gives rows whose

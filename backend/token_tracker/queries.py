@@ -38,6 +38,17 @@ def load_pricing(pricing_path=None):
     return config.load_pricing(pricing_path)
 
 
+# Which rules the cost calculation follows; recorded with every audit of it
+# (see record_cost_audit). Raise it whenever the calculation changes.
+#   1: one row per transcript entry, every cache write at the 5-minute rate.
+#   2: one row per API response, 1-hour cache writes at their own rate.
+COST_ALGORITHM_VERSION = 2
+
+# How often the calculation is checked against Anthropic's published prices
+# and rules: an older audit is reported as overdue (dashboard and `doctor`).
+COST_AUDIT_MAX_AGE_DAYS = 14
+
+
 def cost_for_row(pricing, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
                  cache_creation_1h_tokens=0):
     """Dollars for token counts of one model. `cache_creation_tokens` includes
@@ -806,3 +817,55 @@ def get_accounts_summary(connection, pricing):
         summary["cost_share"] = summary["all"]["cost"] / total_cost if total_cost > 0 else 0.0
     return summaries
 
+
+def record_cost_audit(connection, pricing_updated, source=None, note=None, audited_at=None):
+    """Record that the cost calculation (this COST_ALGORITHM_VERSION, with the
+    price list dated `pricing_updated`) was checked against Anthropic's
+    published rules."""
+    audited_at = audited_at or datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+    connection.execute(
+        "INSERT INTO cost_audits (audited_at, algorithm_version, pricing_updated, source, note) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (audited_at, COST_ALGORITHM_VERSION, pricing_updated, source, note),
+    )
+    connection.commit()
+    return audited_at
+
+
+def get_cost_audit_status(connection, pricing_updated, now=None):
+    """The last audit of the cost calculation and whether another is due: none
+    was recorded, it is older than COST_AUDIT_MAX_AGE_DAYS, it checked an older
+    calculation, or the price list changed after it."""
+    try:
+        row = connection.execute(
+            "SELECT audited_at, algorithm_version, pricing_updated, source, note "
+            "FROM cost_audits ORDER BY audited_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    if row is None:
+        return {"last": None, "age_days": None, "due": True, "overdue": False, "reasons": ["never audited"]}
+    audited_at, algorithm_version, audited_pricing, source, note = row
+    now = now or datetime.now(ZoneInfo("UTC"))
+    age_days = (now - datetime.fromisoformat(audited_at.replace("Z", "+00:00"))).days
+    reasons = []
+    overdue = age_days > COST_AUDIT_MAX_AGE_DAYS
+    if overdue:
+        reasons.append(f"last audit {age_days} days ago")
+    if algorithm_version < COST_ALGORITHM_VERSION:
+        reasons.append("the calculation changed since")
+    if pricing_updated and audited_pricing and pricing_updated > audited_pricing:
+        reasons.append("the price list changed since")
+    return {
+        "last": {
+            "audited_at": audited_at,
+            "algorithm_version": algorithm_version,
+            "pricing_updated": audited_pricing,
+            "source": source,
+            "note": note,
+        },
+        "age_days": age_days,
+        "due": bool(reasons),
+        "overdue": overdue,
+        "reasons": reasons,
+    }

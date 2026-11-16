@@ -122,6 +122,7 @@ def test_overview_has_the_top_of_the_dashboard_and_none_of_the_tables(client):
     payload = client.get("/api/overview").json()
     assert set(payload) == {
         "usage_snapshots", "daily_usage", "accounts", "weekly_limits_by_account", "selected_account", "timezone",
+        "cost_audit",
     }
     assert len(payload["daily_usage"]) == 10
     assert {a["label"] for a in payload["accounts"]} == {"Me", "Gus"}

@@ -42,9 +42,17 @@ def run() -> int:
                 _line(None, "accounts", ", ".join(row[0] for row in account_rows) or "none yet")
             except sqlite3.OperationalError:
                 _line(None, "accounts", "none yet (run an ingest)")
-            unknown = queries.get_unknown_models(connection, config.load_pricing())
+            pricing = config.load_pricing()
+            unknown = queries.get_unknown_models(connection, pricing)
             _line(not unknown, "prices", "every model has a price" if not unknown
                   else f"no price for {', '.join(unknown)}; add them to {config.pricing_override_path()}")
+            audit = queries.get_cost_audit_status(connection, pricing.get("_meta", {}).get("updated"))
+            last = audit["last"]
+            detail = (f"last on {last['audited_at'][:10]} (calculation v{last['algorithm_version']}, "
+                      f"prices of {last['pricing_updated']})" if last else "none recorded")
+            if audit["due"]:
+                detail += f"; due: {', '.join(audit['reasons'])}. Check the costs, then run `token-tracker audit-costs`"
+            _line(not audit["due"], "cost audit", detail)
             connection.close()
         except sqlite3.Error as error:
             healthy &= _line(False, "database", f"{db}: {error}")

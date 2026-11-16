@@ -58,6 +58,23 @@ def _uninstall_hooks(args) -> int:
     return 0
 
 
+def _audit_costs(args) -> int:
+    """Record that the cost calculation was checked against Anthropic's rules."""
+    from . import config, queries, schema
+
+    connection = queries.connect(config.db_path())
+    schema.migrate(connection)
+    pricing_updated = config.load_pricing().get("_meta", {}).get("updated")
+    audited_at = queries.record_cost_audit(connection, pricing_updated, args.source, args.note)
+    connection.close()
+    print(
+        f"Recorded a cost audit at {audited_at}: calculation v{queries.COST_ALGORITHM_VERSION}, "
+        f"prices of {pricing_updated}. The next one is due in {queries.COST_AUDIT_MAX_AGE_DAYS} days, "
+        "or sooner if the prices or the calculation change."
+    )
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="token-tracker", description="Claude Code usage statistics, from your own logs.")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
@@ -82,6 +99,15 @@ def _build_parser() -> argparse.ArgumentParser:
         hooks = sub.add_parser(name, help=help_text)
         hooks.add_argument("--dry-run", action="store_true", help="show what would change, write nothing")
         hooks.set_defaults(run=handler)
+
+    audit = sub.add_parser(
+        "audit-costs",
+        help="record that the cost calculation was checked against Anthropic's published prices and rules",
+    )
+    audit.add_argument("--note", help="what was checked and what was found")
+    audit.add_argument("--source", default="https://platform.claude.com/docs/en/about-claude/pricing",
+                       help="where the rules were read")
+    audit.set_defaults(run=_audit_costs)
 
     sub.add_parser("doctor", help="check the setup and say what is missing")
     sub.add_parser("hook", help="(called by Claude Code) record the account of a session")

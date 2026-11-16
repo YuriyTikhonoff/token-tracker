@@ -10,6 +10,8 @@
 - Prices updated to Anthropic's list of 2026-11-17: Fable 5.2 and the Mythos models added, Opus
   4.5, 4.1 and 4, Sonnet 4.5 and 4 added, cache reads of Sonnet 5.5 and Fable 5 corrected.
 - Subagent transcripts are read.
+- Audits of the cost calculation are recorded in the database (`token-tracker audit-costs`); the
+  dashboard and `doctor` say when the last one is more than two weeks old.
 - The top of the dashboard is one sticky toolbar: account switcher, notices, the time of the last
   refresh, a ⋯ menu with the Accounts table, and Refresh. The refresh status is a toast.
 

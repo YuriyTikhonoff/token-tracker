@@ -162,6 +162,23 @@ export interface AccountLabel {
 }
 
 // GET /api/overview: the top of the dashboard, without the heavy tables.
+/** The last check of the cost calculation against Anthropic's rules. */
+export interface CostAuditStatus {
+  last: {
+    audited_at: string;
+    algorithm_version: number;
+    pricing_updated: string | null;
+    source: string | null;
+    note: string | null;
+  } | null;
+  age_days: number | null;
+  /** True when none was recorded, it is old, or prices or the calculation changed since. */
+  due: boolean;
+  /** Older than the two-week audit interval. */
+  overdue: boolean;
+  reasons: string[];
+}
+
 export interface OverviewData {
   usage_snapshots: UsageSnapshotTrend[];
   daily_usage: DailyUsage[];
@@ -170,6 +187,7 @@ export interface OverviewData {
   weekly_limits_by_account?: AccountWeeklyLimits[];
   selected_account: string | null;
   timezone: string;
+  cost_audit?: CostAuditStatus | null;
 }
 
 // GET /api/sections/codex: loaded when the Codex section is opened.
